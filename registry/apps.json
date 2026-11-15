@@ -14,18 +14,6 @@
       "size": 6815744
     },
     {
-      "id": "autoprofi",
-      "name": "АвтоПрофи",
-      "package": "com.autoprofi.app",
-      "version": "1.2.0",
-      "description": "АвтоПрофи — офлайн-помощник водителя: путевые листы, рейсы, заправки, финансы и ИИ-агент. PWA + Android APK.",
-      "repo": "vladimirgorodok/autoprofi",
-      "releaseUrl": "https://github.com/vladimirgorodok/autoprofi/releases/tag/v1.2.0",
-      "apkUrl": "https://github.com/vladimirgorodok/autoprofi/releases/download/v1.2.0/autoprofi-v1.2.0.apk",
-      "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/autoprofi.png",
-      "size": 314572
-    },
-    {
       "id": "zen-counter",
       "name": "Дзен счётчик",
       "package": "com.zencounter.app",
