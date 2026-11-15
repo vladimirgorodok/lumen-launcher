@@ -21,12 +21,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NightlightRound
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -45,7 +47,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.lumen.launcher.data.Connection
 import ru.lumen.launcher.data.LumenSettings
+import ru.lumen.launcher.data.ServiceKind
 import ru.lumen.launcher.data.WebApp
 
 @Composable
@@ -60,6 +64,8 @@ fun SettingsScreen(
     onOpenDreamSettings: () -> Unit,
     onAddWebApp: (String, String) -> Unit,
     onDeleteWebApp: (WebApp) -> Unit,
+    onSaveConnection: (Connection) -> Unit,
+    onDeleteConnection: (Connection) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -193,6 +199,59 @@ fun SettingsScreen(
                     palette = palette,
                     onClick = onOpenHomeSettings,
                 )
+            }
+
+            SettingsCard(palette, title = "Подключения", icon = Icons.Filled.CloudDownload) {
+                Text(
+                    "Сервисы, откуда приложения попадают в списки: Teable, GitHub, OpenChamber. " +
+                        "Токен хранится только на устройстве.",
+                    fontSize = 12.sp,
+                    color = palette.textSecondary,
+                )
+                Spacer(Modifier.height(10.dp))
+                settings.connections.forEach { connection ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(30.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(palette.accentText.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                connection.kind.label.take(1),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = palette.accentText,
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(connection.displayLabel, fontSize = 13.sp, color = palette.textPrimary)
+                            Text(
+                                connection.baseUrl,
+                                fontSize = 10.sp,
+                                color = palette.textSecondary,
+                                maxLines = 1,
+                            )
+                        }
+                        IconButton(onClick = { onDeleteConnection(connection) }) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = "Удалить подключение",
+                                tint = palette.textSecondary.copy(alpha = 0.75f),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                ConnectionEditor(palette = palette, onSave = onSaveConnection)
             }
 
             SettingsCard(palette, title = "Веб-приложения", icon = Icons.Filled.Public) {
@@ -377,14 +436,14 @@ private fun AddWebAppInline(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        androidx.compose.material3.OutlinedTextField(
+        OutlinedTextField(
             value = name,
             onValueChange = { name = it },
             label = { Text("Название") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        androidx.compose.material3.OutlinedTextField(
+        OutlinedTextField(
             value = url,
             onValueChange = { url = it },
             label = { Text("Адрес") },
@@ -403,6 +462,138 @@ private fun AddWebAppInline(
                     }
                 },
             ) { Text("Добавить") }
+            TextButton(onClick = { open = false }) { Text("Отмена") }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionEditor(
+    palette: LumenPalette,
+    onSave: (Connection) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    var kind by remember { mutableStateOf(ServiceKind.TEABLE) }
+    var label by remember { mutableStateOf("") }
+    var baseUrl by remember { mutableStateOf(ServiceKind.TEABLE.defaultBaseUrl) }
+    var token by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    if (!open) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .border(1.dp, palette.panelBorder, RoundedCornerShape(14.dp))
+                .clickable { open = true }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = null, tint = palette.accentText, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Добавить подключение", fontSize = 13.sp, color = palette.textPrimary)
+        }
+        return
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ServiceKind.entries.forEach { option ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (option == kind) palette.accentText.copy(alpha = 0.14f) else Color.Transparent
+                        )
+                        .border(
+                            1.dp,
+                            if (option == kind) palette.accentText.copy(alpha = 0.5f) else palette.panelBorder,
+                            RoundedCornerShape(12.dp),
+                        )
+                        .clickable {
+                            kind = option
+                            if (baseUrl.isBlank() || baseUrl == ServiceKind.entries.firstOrNull { it != option }?.defaultBaseUrl) {
+                                baseUrl = option.defaultBaseUrl
+                            }
+                        }
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        option.label,
+                        fontSize = 11.sp,
+                        color = if (option == kind) palette.accentText else palette.textSecondary,
+                        fontWeight = if (option == kind) FontWeight.SemiBold else FontWeight.Normal,
+                    )
+                }
+            }
+        }
+        Text(kind.hint, fontSize = 10.sp, color = palette.textSecondary)
+        OutlinedTextField(
+            value = label,
+            onValueChange = { label = it },
+            label = { Text("Название (необязательно)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = baseUrl,
+            onValueChange = { baseUrl = it },
+            label = { Text("Адрес сервиса") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (kind != ServiceKind.OPENCHAMBER) {
+            OutlinedTextField(
+                value = token,
+                onValueChange = { token = it },
+                label = { Text(if (kind == ServiceKind.GITHUB) "Токен (необязательно)" else "Токен") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (kind == ServiceKind.GITHUB || kind == ServiceKind.OPENCHAMBER) {
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text(if (kind == ServiceKind.GITHUB) "Логин GitHub" else "Логин") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (kind == ServiceKind.OPENCHAMBER) {
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Пароль") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+                onClick = {
+                    val resolvedBase = baseUrl.trim().ifBlank { kind.defaultBaseUrl }
+                    onSave(
+                        Connection(
+                            id = "conn-" + System.currentTimeMillis(),
+                            kind = kind,
+                            label = label.trim(),
+                            baseUrl = resolvedBase,
+                            token = token.trim(),
+                            username = username.trim(),
+                            password = password,
+                        )
+                    )
+                    label = ""
+                    token = ""
+                    username = ""
+                    password = ""
+                    open = false
+                },
+            ) { Text("Сохранить") }
             TextButton(onClick = { open = false }) { Text("Отмена") }
         }
     }

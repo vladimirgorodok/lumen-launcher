@@ -83,6 +83,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.lumen.launcher.data.AppsRepository
+import ru.lumen.launcher.data.CatalogLoader
+import ru.lumen.launcher.data.CatalogState
+import ru.lumen.launcher.data.Connection
 import ru.lumen.launcher.data.DEFAULT_LAT
 import ru.lumen.launcher.data.DEFAULT_LON
 import ru.lumen.launcher.data.InstalledApp
@@ -128,6 +131,8 @@ fun LumenRoot() {
     var appsRefresh by remember { mutableIntStateOf(0) }
 
     var battery by remember { mutableStateOf(BatteryState()) }
+    var catalogs by remember { mutableStateOf<Map<String, CatalogState>>(emptyMap()) }
+    var catalogRefresh by remember { mutableIntStateOf(0) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -209,6 +214,15 @@ fun LumenRoot() {
         installed = runCatching { appsRepository.load() }.getOrDefault(emptyList())
         appsLoading = false
         isDefaultLauncher = appsRepository.isDefaultLauncher()
+    }
+
+    LaunchedEffect(settings.connections, catalogRefresh) {
+        val connections = settings.connections
+        catalogs = connections.associate { it.id to CatalogState.Loading }
+        connections.forEach { connection ->
+            val state = CatalogLoader.load(connection)
+            catalogs = catalogs + (connection.id to state)
+        }
     }
 
     LaunchedEffect(saverActive, settings.screensaverMinutes) {
@@ -316,25 +330,31 @@ fun LumenRoot() {
                         installed = installed,
                         loading = appsLoading,
                         webApps = settings.webApps,
+                        connections = settings.connections,
+                        catalogs = catalogs,
                         onLaunch = { appsRepository.launch(it) },
                         onAppInfo = { appsRepository.openAppInfo(it) },
-                        onOpenWebApp = { webApp ->
-                            context.startActivity(
-                                Intent(context, WebAppActivity::class.java)
-                                    .putExtra(WebAppActivity.EXTRA_URL, webApp.url)
-                                    .putExtra(WebAppActivity.EXTRA_TITLE, webApp.name)
-                            )
-                        },
-                        onAddWebApp = { name, url ->
+                        onOpenUrl = { name, url -> openWebContainer(context, name, url) },
+                        onAddWebApp = { name, url, iconUrl ->
                             scope.launch {
-                                preferences.setWebApps(
-                                    settings.webApps + WebApp(name, url, settings.webApps.size % 6)
-                                )
+                                if (settings.webApps.none { it.url == url }) {
+                                    preferences.setWebApps(
+                                        settings.webApps +
+                                            WebApp(name, url, settings.webApps.size % 6, iconUrl)
+                                    )
+                                }
                             }
                         },
                         onDeleteWebApp = { webApp ->
                             scope.launch {
                                 preferences.setWebApps(settings.webApps.filterNot { it.url == webApp.url })
+                            }
+                        },
+                        onRefreshCatalog = { connection ->
+                            scope.launch {
+                                catalogs = catalogs + (connection.id to CatalogState.Loading)
+                                val state = CatalogLoader.load(connection)
+                                catalogs = catalogs + (connection.id to state)
                             }
                         },
                         onRefresh = { appsRefresh += 1 },
@@ -364,14 +384,28 @@ fun LumenRoot() {
                         },
                         onAddWebApp = { name, url ->
                             scope.launch {
-                                preferences.setWebApps(
-                                    settings.webApps + WebApp(name, url, settings.webApps.size % 6)
-                                )
+                                if (settings.webApps.none { it.url == url }) {
+                                    preferences.setWebApps(
+                                        settings.webApps + WebApp(name, url, settings.webApps.size % 6)
+                                    )
+                                }
                             }
                         },
                         onDeleteWebApp = { webApp ->
                             scope.launch {
                                 preferences.setWebApps(settings.webApps.filterNot { it.url == webApp.url })
+                            }
+                        },
+                        onSaveConnection = { connection ->
+                            scope.launch {
+                                preferences.setConnections(
+                                    settings.connections.filterNot { it.id == connection.id } + connection
+                                )
+                            }
+                        },
+                        onDeleteConnection = { connection ->
+                            scope.launch {
+                                preferences.setConnections(settings.connections.filterNot { it.id == connection.id })
                             }
                         },
                         onBack = { screen = Screen.CLOCK },
@@ -583,6 +617,14 @@ private fun LumenMark(palette: LumenPalette) {
             center = Offset(w * 0.34f, h * 0.84f),
         )
     }
+}
+
+private fun openWebContainer(context: Context, name: String, url: String) {
+    context.startActivity(
+        Intent(context, WebAppActivity::class.java)
+            .putExtra(WebAppActivity.EXTRA_URL, url)
+            .putExtra(WebAppActivity.EXTRA_TITLE, name)
+    )
 }
 
 private fun Context.findActivity(): Activity? {

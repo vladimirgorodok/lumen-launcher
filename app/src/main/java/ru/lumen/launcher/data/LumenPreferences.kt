@@ -17,6 +17,7 @@ data class LumenSettings(
     val showSeconds: Boolean = true,
     val backgroundSeed: Int = 1,
     val webApps: List<WebApp> = SeedWebApps,
+    val connections: List<Connection> = emptyList(),
     val weatherCache: String? = null,
 )
 
@@ -27,6 +28,7 @@ class LumenPreferences(private val context: Context) {
         val showSeconds = booleanPreferencesKey("show_seconds")
         val backgroundSeed = intPreferencesKey("background_seed")
         val webApps = stringPreferencesKey("web_apps")
+        val connections = stringPreferencesKey("connections")
         val weatherCache = stringPreferencesKey("weather_cache")
     }
 
@@ -36,6 +38,7 @@ class LumenPreferences(private val context: Context) {
             showSeconds = prefs[Keys.showSeconds] ?: true,
             backgroundSeed = prefs[Keys.backgroundSeed] ?: 1,
             webApps = decodeWebApps(prefs[Keys.webApps]),
+            connections = decodeConnections(prefs[Keys.connections]),
             weatherCache = prefs[Keys.weatherCache],
         )
     }
@@ -54,6 +57,10 @@ class LumenPreferences(private val context: Context) {
 
     suspend fun setWebApps(apps: List<WebApp>) {
         context.lumenDataStore.edit { it[Keys.webApps] = encodeWebApps(apps) }
+    }
+
+    suspend fun setConnections(connections: List<Connection>) {
+        context.lumenDataStore.edit { it[Keys.connections] = encodeConnections(connections) }
     }
 
     suspend fun setWeatherCache(raw: String?) {

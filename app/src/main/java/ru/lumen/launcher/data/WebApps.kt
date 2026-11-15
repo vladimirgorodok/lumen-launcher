@@ -7,6 +7,7 @@ data class WebApp(
     val name: String,
     val url: String,
     val colorIndex: Int,
+    val iconUrl: String? = null,
 )
 
 /**
@@ -20,10 +21,6 @@ val SeedWebApps: List<WebApp> = listOf(
     WebApp("Яндекс.Диск Фото", "https://vladimirgorodok.github.io/yadisk-photo-ai/", 2),
 )
 
-private fun JSONArray.toStringList(): List<String> = buildList {
-    for (index in 0 until length()) add(optString(index, ""))
-}
-
 fun encodeWebApps(apps: List<WebApp>): String {
     val array = JSONArray()
     apps.forEach { app ->
@@ -32,6 +29,7 @@ fun encodeWebApps(apps: List<WebApp>): String {
                 .put("name", app.name)
                 .put("url", app.url)
                 .put("color", app.colorIndex)
+                .put("icon", app.iconUrl.orEmpty())
         )
     }
     return array.toString()
@@ -47,7 +45,8 @@ fun decodeWebApps(raw: String?): List<WebApp> {
                 val name = item.optString("name").trim()
                 val url = item.optString("url").trim()
                 if (name.isNotEmpty() && url.isNotEmpty()) {
-                    add(WebApp(name, url, item.optInt("color", index % 6)))
+                    val icon = item.optString("icon").trim().ifBlank { null }
+                    add(WebApp(name, url, item.optInt("color", index % 6), icon))
                 }
             }
         }
