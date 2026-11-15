@@ -54,6 +54,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.lumen.launcher.data.AgentMood
 import ru.lumen.launcher.data.Character
 import ru.lumen.launcher.data.ChatMessage
 import ru.lumen.launcher.data.Connection
@@ -88,6 +89,18 @@ fun AiScreen(
     val micPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> if (granted) voice.listen() }
+
+    val mood = when {
+        voice.speaking -> AgentMood.TALK
+        voice.listening -> AgentMood.LISTEN
+        busy -> AgentMood.THINK
+        else -> AgentMood.IDLE
+    }
+    // любое событие в диалоге сбрасывает таймер «персонаж скучает»
+    val activityTick = messages.size * 4 +
+        (if (busy) 1 else 0) +
+        (if (voice.listening) 1 else 0) +
+        (if (voice.speaking) 1 else 0)
 
     LaunchedEffect(character.id) { voice.setPitch(character.pitch) }
 
@@ -170,6 +183,8 @@ fun AiScreen(
             VoicePanel(
                 palette = palette,
                 character = character,
+                mood = mood,
+                activityTick = activityTick,
                 speaking = voice.speaking,
                 listening = voice.listening,
                 partial = voice.partial,
@@ -185,19 +200,14 @@ fun AiScreen(
             )
         } else {
             Column(modifier = Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    AlienCharacter(
-                        character = character,
-                        speaking = voice.speaking,
-                        listening = voice.listening,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .size(if (voice.speaking || voice.listening) 170.dp else 140.dp),
-                    )
-                }
+                AgentView(
+                    character = character,
+                    mood = mood,
+                    activityTick = activityTick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1.05f),
+                )
 
                 if (messages.isEmpty()) {
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -336,6 +346,8 @@ private fun ModePill(
 private fun VoicePanel(
     palette: LumenPalette,
     character: Character,
+    mood: AgentMood,
+    activityTick: Int,
     speaking: Boolean,
     listening: Boolean,
     partial: String,
@@ -350,15 +362,16 @@ private fun VoicePanel(
             .fillMaxSize()
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        AlienCharacter(
+        AgentView(
             character = character,
-            speaking = speaking,
-            listening = listening,
-            modifier = Modifier.size(260.dp),
+            mood = mood,
+            activityTick = activityTick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
         )
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
             text = when {
                 listening -> partial.ifBlank { "Слушаю…" }

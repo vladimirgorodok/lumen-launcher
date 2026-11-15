@@ -259,6 +259,15 @@ fun SettingsScreen(
                     color = palette.textSecondary,
                 )
                 Spacer(Modifier.height(10.dp))
+                AgentPreview(
+                    character = ru.lumen.launcher.data.Characters.firstOrNull {
+                        it.id == settings.characterId
+                    } ?: ru.lumen.launcher.data.Characters.first(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp),
+                )
+                Spacer(Modifier.height(6.dp))
                 ru.lumen.launcher.data.Characters.forEach { character ->
                     val selected = settings.characterId == character.id
                     Row(
@@ -277,11 +286,12 @@ fun SettingsScreen(
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        AlienCharacter(
+                        AgentView(
                             character = character,
-                            speaking = false,
-                            listening = false,
-                            modifier = Modifier.size(46.dp),
+                            mood = ru.lumen.launcher.data.AgentMood.IDLE,
+                            activityTick = 0,
+                            modifier = Modifier.size(58.dp),
+                            animated = false,
                         )
                         Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
