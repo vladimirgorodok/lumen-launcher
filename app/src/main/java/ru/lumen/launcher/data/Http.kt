@@ -57,6 +57,41 @@ object Http {
         }
     }
 
+    /** POST с JSON-телом: возвращает тело ответа или null. */
+    fun postJson(
+        url: String,
+        body: String,
+        headers: Map<String, String> = emptyMap(),
+        timeoutMs: Int = 30000,
+    ): String? {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = timeoutMs
+                readTimeout = timeoutMs
+                requestMethod = "POST"
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                setRequestProperty("User-Agent", "LumenLauncher/1.2 (Android)")
+                headers.forEach { (key, value) -> if (value.isNotBlank()) setRequestProperty(key, value) }
+            }
+            connection.outputStream.use { it.write(body.toByteArray()) }
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code in 200..299) text else {
+                Log.w("LumenHttp", "POST $url -> $code ${text.take(200)}")
+                null
+            }
+        } catch (error: Exception) {
+            Log.w("LumenHttp", "POST $url failed: ${error.message}")
+            connection?.disconnect()
+            null
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     fun bearer(token: String): Map<String, String> =
         if (token.isBlank()) emptyMap() else mapOf("Authorization" to "Bearer $token")
 

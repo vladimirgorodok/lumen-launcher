@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Settings
@@ -82,19 +83,26 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import ru.lumen.launcher.data.AiClient
 import ru.lumen.launcher.data.AppsRepository
 import ru.lumen.launcher.data.CatalogLoader
 import ru.lumen.launcher.data.CatalogState
+import ru.lumen.launcher.data.Character
+import ru.lumen.launcher.data.ChatMessage
 import ru.lumen.launcher.data.Connection
 import ru.lumen.launcher.data.DEFAULT_LAT
 import ru.lumen.launcher.data.DEFAULT_LON
+import ru.lumen.launcher.data.DeviceActions
 import ru.lumen.launcher.data.InstalledApp
 import ru.lumen.launcher.data.LocationProvider
 import ru.lumen.launcher.data.LumenPreferences
 import ru.lumen.launcher.data.LumenSettings
+import ru.lumen.launcher.data.ServiceKind
+import ru.lumen.launcher.data.Skill
 import ru.lumen.launcher.data.WeatherClient
 import ru.lumen.launcher.data.WeatherCodec
 import ru.lumen.launcher.data.WebApp
+import ru.lumen.launcher.data.characterById
 import ru.lumen.launcher.util.DayPeriod
 import ru.lumen.launcher.util.dayPeriod
 import ru.lumen.launcher.util.dayPeriodLabel
@@ -103,7 +111,7 @@ import ru.lumen.launcher.util.seasonLabel
 import ru.lumen.launcher.web.WebAppActivity
 import java.time.LocalDateTime
 
-private enum class Screen { CLOCK, APPS, SETTINGS }
+private enum class Screen { CLOCK, APPS, AI, SETTINGS }
 
 @Composable
 fun LumenRoot() {
@@ -133,6 +141,54 @@ fun LumenRoot() {
     var battery by remember { mutableStateOf(BatteryState()) }
     var catalogs by remember { mutableStateOf<Map<String, CatalogState>>(emptyMap()) }
     var catalogRefresh by remember { mutableIntStateOf(0) }
+
+    var chat by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
+    var aiBusy by remember { mutableStateOf(false) }
+    var aiStatus by remember { mutableStateOf<String?>(null) }
+    val deviceActions = remember { DeviceActions(context, appsRepository) }
+
+    val character = characterById(settings.characterId)
+    val enabledSkills = settings.skills.enabled
+    val aiConnection = settings.connections.firstOrNull { it.kind == ServiceKind.AI }
+
+    val sendToCharacter: (String) -> Unit = { text ->
+        chat = chat + ChatMessage("user", text)
+        val connection = aiConnection
+        if (connection == null) {
+            chat = chat + ChatMessage(
+                "assistant",
+                "Нет подключения ИИ. Добавьте его в «Настройки → Подключения → ИИ»: адрес, ключ и модель.",
+            )
+        } else {
+            scope.launch {
+                aiBusy = true
+                aiStatus = "Отправляю запрос…"
+                val system = buildCharacterPrompt(character, enabledSkills)
+                val history = chat.takeLast(20).map { ChatMessage(it.role, it.content) }
+                val result = AiClient.complete(connection, listOf(ChatMessage("system", system)) + history)
+                aiBusy = false
+                aiStatus = null
+                result.fold(
+                    onSuccess = { reply ->
+                        val command = AiClient.parseAction(reply)
+                        val canAct = enabledSkills.any { it.id == "android-device" }
+                        if (command != null && canAct) {
+                            val outcome = deviceActions.execute(command)
+                            chat = chat + ChatMessage("assistant", outcome)
+                        } else {
+                            chat = chat + ChatMessage("assistant", reply)
+                        }
+                    },
+                    onFailure = { error ->
+                        chat = chat + ChatMessage(
+                            "assistant",
+                            "Не получилось: ${error.message ?: "неизвестная ошибка"}",
+                        )
+                    },
+                )
+            }
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -361,6 +417,20 @@ fun LumenRoot() {
                         onBack = { screen = Screen.CLOCK },
                     )
 
+                    Screen.AI -> AiScreen(
+                        palette = palette,
+                        character = character,
+                        skills = enabledSkills,
+                        aiConnection = aiConnection,
+                        messages = chat,
+                        busy = aiBusy,
+                        status = aiStatus,
+                        onSend = sendToCharacter,
+                        onClear = { chat = emptyList() },
+                        onOpenSettings = { screen = Screen.SETTINGS },
+                        onBack = { screen = Screen.CLOCK },
+                    )
+
                     Screen.SETTINGS -> SettingsScreen(
                         palette = palette,
                         settings = settings,
@@ -407,6 +477,12 @@ fun LumenRoot() {
                             scope.launch {
                                 preferences.setConnections(settings.connections.filterNot { it.id == connection.id })
                             }
+                        },
+                        onSelectCharacter = { id ->
+                            scope.launch { preferences.setCharacterId(id) }
+                        },
+                        onSaveSkills = { state ->
+                            scope.launch { preferences.setSkills(state) }
                         },
                         onBack = { screen = Screen.CLOCK },
                     )
@@ -471,6 +547,14 @@ private fun ClockHeader(
                     onClick = {
                         menuOpen = false
                         onMenuAction(Screen.APPS)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Персонаж ИИ") },
+                    leadingIcon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        onMenuAction(Screen.AI)
                     },
                 )
                 DropdownMenuItem(
@@ -619,8 +703,29 @@ private fun LumenMark(palette: LumenPalette) {
     }
 }
 
-private fun openWebContainer(context: Context, name: String, url: String) {
-    context.startActivity(
+/** Характер персонажа плюс подключённые навыки; для действий — строгий JSON-протокол. */
+private fun buildCharacterPrompt(character: Character, skills: List<Skill>): String = buildString {
+    append("Ты — ${character.name}, ${character.tagline}. ${character.style} ")
+    append("Отвечай по-русски, коротко и по делу.")
+    if (skills.isNotEmpty()) {
+        append("\n\nПодключённые навыки:")
+        skills.forEach { skill ->
+            if (skill.prompt.isNotBlank()) append("\n- ${skill.name}: ${skill.prompt}")
+        }
+    }
+    if (skills.any { it.id == "android-device" }) {
+        append(
+            "\n\nТы умеешь действовать на телефоне. Если нужен действие — ответь ровно одной строкой JSON, " +
+                "без markdown и без пояснений, например:\n" +
+                "{\"action\":\"alarm\",\"hour\":7,\"minute\":0,\"text\":\"Подъём\"}\n" +
+                "Доступные action: alarm (hour, minute, text), notification (title, text), " +
+                "clipboard (text), open_app (target — название приложения), open_url (url), toast (text).\n" +
+                "Если действие не нужно — отвечай обычным текстом."
+        )
+    }
+}
+
+private fun openWebContainer(context: Context, name: String, url: String) {    context.startActivity(
         Intent(context, WebAppActivity::class.java)
             .putExtra(WebAppActivity.EXTRA_URL, url)
             .putExtra(WebAppActivity.EXTRA_TITLE, name)

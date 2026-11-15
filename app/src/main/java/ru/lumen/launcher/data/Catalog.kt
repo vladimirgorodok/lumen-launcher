@@ -29,6 +29,7 @@ object CatalogLoader {
                 ServiceKind.TEABLE -> loadTeable(connection)
                 ServiceKind.GITHUB -> loadGitHub(connection)
                 ServiceKind.OPENCHAMBER -> loadOpenChamber(connection)
+                ServiceKind.AI -> CatalogState.Error("Подключение ИИ не даёт список приложений")
             }
         }.getOrElse { error ->
             CatalogState.Error(error.message ?: "Сервис недоступен")

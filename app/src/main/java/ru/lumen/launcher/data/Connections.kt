@@ -18,6 +18,11 @@ enum class ServiceKind(
         defaultBaseUrl = "https://api.github.com",
         hint = "Логин GitHub. Для публичных репозиториев токен не нужен (анонимный лимит 60 запросов в час).",
     ),
+    AI(
+        label = "ИИ",
+        defaultBaseUrl = "https://api.aitunnel.ru/v1",
+        hint = "OpenAI-совместимый адрес, ключ и модель. Персонаж отвечает через это подключение.",
+    ),
     OPENCHAMBER(
         label = "OpenChamber",
         defaultBaseUrl = "",
@@ -33,6 +38,7 @@ data class Connection(
     val token: String = "",
     val username: String = "",
     val password: String = "",
+    val model: String = "",
 ) {
     val displayLabel: String get() = label.ifBlank { kind.label }
 }
@@ -49,6 +55,7 @@ fun encodeConnections(connections: List<Connection>): String {
                 .put("token", connection.token)
                 .put("username", connection.username)
                 .put("password", connection.password)
+                .put("model", connection.model)
         )
     }
     return array.toString()
@@ -75,6 +82,7 @@ fun decodeConnections(raw: String?): List<Connection> {
                         token = item.optString("token"),
                         username = item.optString("username"),
                         password = item.optString("password"),
+                        model = item.optString("model"),
                     )
                 )
             }

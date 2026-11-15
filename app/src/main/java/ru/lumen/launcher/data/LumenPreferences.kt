@@ -18,6 +18,8 @@ data class LumenSettings(
     val backgroundSeed: Int = 1,
     val webApps: List<WebApp> = SeedWebApps,
     val connections: List<Connection> = emptyList(),
+    val characterId: String = Characters.first().id,
+    val skills: SkillsState = SkillsState(),
     val weatherCache: String? = null,
 )
 
@@ -29,6 +31,8 @@ class LumenPreferences(private val context: Context) {
         val backgroundSeed = intPreferencesKey("background_seed")
         val webApps = stringPreferencesKey("web_apps")
         val connections = stringPreferencesKey("connections")
+        val characterId = stringPreferencesKey("character_id")
+        val skills = stringPreferencesKey("skills")
         val weatherCache = stringPreferencesKey("weather_cache")
     }
 
@@ -39,6 +43,8 @@ class LumenPreferences(private val context: Context) {
             backgroundSeed = prefs[Keys.backgroundSeed] ?: 1,
             webApps = decodeWebApps(prefs[Keys.webApps]),
             connections = decodeConnections(prefs[Keys.connections]),
+            characterId = prefs[Keys.characterId] ?: Characters.first().id,
+            skills = decodeSkills(prefs[Keys.skills]),
             weatherCache = prefs[Keys.weatherCache],
         )
     }
@@ -61,6 +67,14 @@ class LumenPreferences(private val context: Context) {
 
     suspend fun setConnections(connections: List<Connection>) {
         context.lumenDataStore.edit { it[Keys.connections] = encodeConnections(connections) }
+    }
+
+    suspend fun setCharacterId(id: String) {
+        context.lumenDataStore.edit { it[Keys.characterId] = id }
+    }
+
+    suspend fun setSkills(skills: SkillsState) {
+        context.lumenDataStore.edit { it[Keys.skills] = encodeSkills(skills.enabledIds, skills.custom) }
     }
 
     suspend fun setWeatherCache(raw: String?) {

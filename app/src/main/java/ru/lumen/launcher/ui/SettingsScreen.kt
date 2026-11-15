@@ -66,6 +66,8 @@ fun SettingsScreen(
     onDeleteWebApp: (WebApp) -> Unit,
     onSaveConnection: (Connection) -> Unit,
     onDeleteConnection: (Connection) -> Unit,
+    onSelectCharacter: (String) -> Unit,
+    onSaveSkills: (ru.lumen.launcher.data.SkillsState) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -201,6 +203,78 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsCard(palette, title = "Персонаж", icon = Icons.Filled.AutoAwesome) {
+                Text(
+                    "Кто отвечает на вкладке ИИ: имя, характер и голос. Навыки добавляются кнопкой ниже.",
+                    fontSize = 12.sp,
+                    color = palette.textSecondary,
+                )
+                Spacer(Modifier.height(10.dp))
+                ru.lumen.launcher.data.Characters.forEach { character ->
+                    val selected = settings.characterId == character.id
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (selected) character.body.copy(alpha = 0.14f) else Color.Transparent
+                            )
+                            .border(
+                                1.dp,
+                                if (selected) character.body.copy(alpha = 0.45f) else palette.panelBorder,
+                                RoundedCornerShape(14.dp),
+                            )
+                            .clickable { onSelectCharacter(character.id) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AlienCharacter(
+                            character = character,
+                            speaking = false,
+                            listening = false,
+                            modifier = Modifier.size(46.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(character.name, fontSize = 13.sp, color = palette.textPrimary)
+                            Text(
+                                character.tagline,
+                                fontSize = 11.sp,
+                                color = palette.textSecondary,
+                            )
+                        }
+                        if (selected) {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = "Выбран",
+                                tint = character.body,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                var skillsOpen by remember { mutableStateOf(false) }
+                OutlinedAction(
+                    text = "Навыки персонажа",
+                    subtitle = "подключено ${settings.skills.enabledIds.size} из ${settings.skills.all.size}",
+                    palette = palette,
+                    onClick = { skillsOpen = true },
+                )
+                if (skillsOpen) {
+                    SkillsDialog(
+                        palette = palette,
+                        state = settings.skills,
+                        onSave = {
+                            onSaveSkills(it)
+                            skillsOpen = false
+                        },
+                        onDismiss = { skillsOpen = false },
+                    )
+                }
+            }
+
             SettingsCard(palette, title = "Подключения", icon = Icons.Filled.CloudDownload) {
                 Text(
                     "Сервисы, откуда приложения попадают в списки: Teable, GitHub, OpenChamber. " +
@@ -311,7 +385,7 @@ fun SettingsScreen(
             }
 
             Text(
-                text = "Люмен 1.0 · лаунчер для Android\n" +
+                text = "Люмен 1.2 · лаунчер для Android\n" +
                     "Главный экран повторяет «Люмен» из Teable, остальные экраны — свои.",
                 fontSize = 10.sp,
                 color = palette.textSecondary.copy(alpha = 0.85f),
@@ -479,6 +553,7 @@ private fun ConnectionEditor(
     var token by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
 
     if (!open) {
         Row(
@@ -572,6 +647,16 @@ private fun ConnectionEditor(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        if (kind == ServiceKind.AI) {
+            OutlinedTextField(
+                value = model,
+                onValueChange = { model = it },
+                label = { Text("Модель") },
+                placeholder = { Text("например deepseek-v4.1-flash") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(
                 onClick = {
@@ -585,16 +670,150 @@ private fun ConnectionEditor(
                             token = token.trim(),
                             username = username.trim(),
                             password = password,
+                            model = model.trim(),
                         )
                     )
                     label = ""
                     token = ""
                     username = ""
                     password = ""
+                    model = ""
                     open = false
                 },
             ) { Text("Сохранить") }
             TextButton(onClick = { open = false }) { Text("Отмена") }
         }
     }
+}
+
+/** Окно «Навыки персонажа»: переключатели встроенных навыков и свой навык. */
+@Composable
+private fun SkillsDialog(
+    palette: LumenPalette,
+    state: ru.lumen.launcher.data.SkillsState,
+    onSave: (ru.lumen.launcher.data.SkillsState) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var enabled by remember(state) { mutableStateOf(state.enabledIds) }
+    var custom by remember(state) { mutableStateOf(state.custom) }
+    var adding by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newPrompt by remember { mutableStateOf("") }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Навыки персонажа") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .height(if (adding) 300.dp else 360.dp),
+            ) {
+                Text(
+                    "Подключённые навыки добавляются к характеру персонажа. «Телефон» — это реальные действия.",
+                    fontSize = 11.sp,
+                    color = palette.textSecondary,
+                )
+                Spacer(Modifier.height(10.dp))
+                state.all.forEach { skill ->
+                    val isOn = skill.id in enabled
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (skill.kind == ru.lumen.launcher.data.SkillKind.DEVICE) {
+                                    "${skill.name} · действия"
+                                } else {
+                                    skill.name
+                                },
+                                fontSize = 13.sp,
+                                color = palette.textPrimary,
+                            )
+                            Text(
+                                skill.description,
+                                fontSize = 11.sp,
+                                color = palette.textSecondary,
+                            )
+                        }
+                        if (skill.custom) {
+                            IconButton(
+                                onClick = { custom = custom.filterNot { it.id == skill.id } },
+                            ) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Удалить навык",
+                                    tint = palette.textSecondary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = isOn,
+                            onCheckedChange = { checked ->
+                                enabled = if (checked) enabled + skill.id else enabled - skill.id
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = palette.accentText,
+                            ),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                if (adding) {
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text("Название навыка") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = newPrompt,
+                        onValueChange = { newPrompt = it },
+                        label = { Text("Что персонаж должен делать") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(110.dp),
+                    )
+                } else {
+                    OutlinedAction(
+                        text = "Добавить свой навык",
+                        subtitle = "название и инструкция для персонажа",
+                        palette = palette,
+                        onClick = { adding = true },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (adding && newName.isNotBlank()) {
+                        val skill = ru.lumen.launcher.data.Skill(
+                            id = "custom-" + System.currentTimeMillis(),
+                            name = newName.trim(),
+                            description = newPrompt.trim().take(80).ifBlank { "свой навык" },
+                            kind = ru.lumen.launcher.data.SkillKind.PROMPT,
+                            prompt = newPrompt.trim(),
+                            custom = true,
+                        )
+                        custom = custom + skill
+                        enabled = enabled + skill.id
+                    }
+                    onSave(ru.lumen.launcher.data.SkillsState(enabledIds = enabled, custom = custom))
+                },
+            ) { Text("Сохранить") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+        containerColor = if (palette.isNight) Color(0xFF0E1B22) else Color.White,
+        titleContentColor = palette.textPrimary,
+        textContentColor = palette.textPrimary,
+    )
 }
