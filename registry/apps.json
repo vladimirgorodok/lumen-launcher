@@ -65,13 +65,13 @@
    "id": "lumen-launcher",
    "name": "Люмен",
    "package": "ru.lumen.launcher",
-   "version": "1.4",
+   "version": "1.5",
    "description": "Нативный лаунчер для Android: часы, погода, приложения и заставка в стиле «Люмена»",
    "repo": "vladimirgorodok/lumen-launcher",
-   "releaseUrl": "https://github.com/vladimirgorodok/lumen-launcher/releases/tag/v1.4",
-   "apkUrl": "https://github.com/vladimirgorodok/lumen-launcher/releases/download/v1.4/Lumen-v1.4.apk",
+   "releaseUrl": "https://github.com/vladimirgorodok/lumen-launcher/releases/tag/v1.5",
+   "apkUrl": "https://github.com/vladimirgorodok/lumen-launcher/releases/download/v1.5/Lumen-v1.5.apk",
    "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/lumen-launcher.png",
-   "size": 11429478
+   "size": 11423623
   },
   {
    "id": "platezhi_openchamber",
