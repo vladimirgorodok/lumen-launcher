@@ -385,7 +385,7 @@ fun SettingsScreen(
             }
 
             Text(
-                text = "Люмен 1.2 · лаунчер для Android\n" +
+                text = "Люмен 1.2.1 · лаунчер для Android\n" +
                     "Главный экран повторяет «Люмен» из Teable, остальные экраны — свои.",
                 fontSize = 10.sp,
                 color = palette.textSecondary.copy(alpha = 0.85f),

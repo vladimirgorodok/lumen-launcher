@@ -55,8 +55,17 @@ object AiClient {
      */
     fun parseAction(reply: String): DeviceCommand? {
         val trimmed = reply.trim()
-        if (!trimmed.startsWith("{")) return null
-        val json = runCatching { JSONObject(trimmed) }.getOrNull() ?: return null
+        val candidate = when {
+            trimmed.startsWith("{") -> trimmed
+            else -> {
+                // Модель могла обернуть команду в пояснение или блок кода.
+                val start = trimmed.indexOf('{')
+                val end = trimmed.lastIndexOf('}')
+                if (start < 0 || end <= start) return null
+                trimmed.substring(start, end + 1)
+            }
+        }
+        val json = runCatching { JSONObject(candidate) }.getOrNull() ?: return null
         val action = json.optString("action").trim()
         if (action.isEmpty()) return null
         return DeviceCommand(

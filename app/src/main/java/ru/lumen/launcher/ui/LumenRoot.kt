@@ -172,11 +172,17 @@ fun LumenRoot() {
                     onSuccess = { reply ->
                         val command = AiClient.parseAction(reply)
                         val canAct = enabledSkills.any { it.id == "android-device" }
-                        if (command != null && canAct) {
-                            val outcome = deviceActions.execute(command)
-                            chat = chat + ChatMessage("assistant", outcome)
-                        } else {
-                            chat = chat + ChatMessage("assistant", reply)
+                        when {
+                            command == null -> chat = chat + ChatMessage("assistant", reply)
+                            canAct -> {
+                                val outcome = deviceActions.execute(command)
+                                chat = chat + ChatMessage("assistant", outcome)
+                            }
+                            else -> chat = chat + ChatMessage(
+                                "assistant",
+                                "Хотел выполнить действие «${command.action}», но навык «Телефон» выключен. " +
+                                    "Включите его в «Настройках → Персонаж → Навыки персонажа».",
+                            )
                         }
                     },
                     onFailure = { error ->
