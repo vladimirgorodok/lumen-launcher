@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.os.BatteryManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -471,6 +472,7 @@ fun LumenRoot() {
                             }
                         },
                         onRefreshBuilds = { buildsRefresh += 1 },
+                        onOpenBuildRelease = { build -> openExternal(context, build.releaseUrl) },
                         onOpenUrl = { name, url -> openWebContainer(context, name, url) },
                         onAddWebApp = { name, url, iconUrl ->
                             scope.launch {
@@ -835,6 +837,11 @@ private fun buildCharacterPrompt(character: Character, skills: List<Skill>): Str
                 "Если действие не нужно — отвечай обычным текстом."
         )
     }
+}
+
+private fun openExternal(context: Context, url: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }.onFailure { openWebContainer(context, url, url) }
 }
 
 private fun openWebContainer(context: Context, name: String, url: String) {    context.startActivity(

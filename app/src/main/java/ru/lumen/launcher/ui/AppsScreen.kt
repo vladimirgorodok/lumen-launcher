@@ -99,6 +99,7 @@ fun AppsScreen(
     onRefreshCatalog: (Connection) -> Unit,
     onRefreshBuilds: () -> Unit,
     onLaunchPackage: (String) -> Unit,
+    onOpenBuildRelease: (BuildApp) -> Unit,
     onInstallBuild: (BuildApp) -> Unit,
     onRefresh: () -> Unit,
     onBack: () -> Unit,
@@ -124,6 +125,14 @@ fun AppsScreen(
     val filteredWeb = remember(webApps, query) {
         if (query.isBlank()) webApps
         else webApps.filter { it.name.contains(query, true) || it.url.contains(query, true) }
+    }
+    val filteredBuilds = remember(builds, query) {
+        if (query.isBlank()) builds
+        else builds.filter {
+            it.name.contains(query, true) ||
+                it.description.contains(query, true) ||
+                it.repo.contains(query, true)
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -208,13 +217,13 @@ fun AppsScreen(
 
             AppsTab.Builds -> BuildsList(
                 palette = palette,
-                apps = builds,
+                apps = filteredBuilds,
                 state = buildsState,
                 installedPackages = installedPackages,
                 installProgress = installProgress,
                 selfPackage = selfPackage,
                 onLaunchPackage = onLaunchPackage,
-                onOpenUrl = onOpenUrl,
+                onOpenRelease = onOpenBuildRelease,
                 onInstall = onInstallBuild,
                 onRetry = onRefreshBuilds,
                 modifier = Modifier.weight(1f),
@@ -381,7 +390,7 @@ private fun BuildsList(
     installProgress: Map<String, Float>,
     selfPackage: String,
     onLaunchPackage: (String) -> Unit,
-    onOpenUrl: (name: String, url: String) -> Unit,
+    onOpenRelease: (BuildApp) -> Unit,
     onInstall: (BuildApp) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -431,7 +440,7 @@ private fun BuildsList(
                     )
                     .clickable {
                         if (installed) onLaunchPackage(app.packageName)
-                        else if (app.releaseUrl.isNotBlank()) onOpenUrl(app.name, app.releaseUrl)
+                        else if (app.releaseUrl.isNotBlank()) onOpenRelease(app)
                     }
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
