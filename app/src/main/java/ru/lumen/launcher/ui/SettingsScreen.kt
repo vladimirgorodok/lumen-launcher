@@ -75,6 +75,26 @@ fun SettingsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var addingConnection by remember { mutableStateOf(false) }
+    var editingConnection by remember { mutableStateOf<Connection?>(null) }
+
+    if (addingConnection || editingConnection != null) {
+        ConnectionEditorScreen(
+            palette = palette,
+            initial = editingConnection,
+            onSave = { connection ->
+                onSaveConnection(connection)
+                addingConnection = false
+                editingConnection = null
+            },
+            onCancel = {
+                addingConnection = false
+                editingConnection = null
+            },
+        )
+        return
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -287,9 +307,6 @@ fun SettingsScreen(
                     color = palette.textSecondary,
                 )
                 Spacer(Modifier.height(10.dp))
-                var editingConnection by remember { mutableStateOf<Connection?>(null) }
-                var addingConnection by remember { mutableStateOf(false) }
-
                 settings.connections.forEach { connection ->
                     Row(
                         modifier = Modifier
@@ -320,6 +337,7 @@ fun SettingsScreen(
                                 text = buildString {
                                     append(connection.baseUrl)
                                     if (connection.model.isNotBlank()) append(" · ${connection.model}")
+                                    if (connection.token.isNotBlank()) append(" · ключ есть")
                                 },
                                 fontSize = 10.sp,
                                 color = palette.textSecondary,
@@ -351,29 +369,6 @@ fun SettingsScreen(
                     palette = palette,
                     onClick = { addingConnection = true },
                 )
-
-                if (addingConnection) {
-                    ConnectionDialog(
-                        palette = palette,
-                        initial = null,
-                        onDismiss = { addingConnection = false },
-                        onSave = {
-                            onSaveConnection(it)
-                            addingConnection = false
-                        },
-                    )
-                }
-                editingConnection?.let { connection ->
-                    ConnectionDialog(
-                        palette = palette,
-                        initial = connection,
-                        onDismiss = { editingConnection = null },
-                        onSave = {
-                            onSaveConnection(it)
-                            editingConnection = null
-                        },
-                    )
-                }
             }
 
             SettingsCard(palette, title = "Веб-приложения", icon = Icons.Filled.Public) {
@@ -455,7 +450,7 @@ fun SettingsScreen(
             }
 
             Text(
-                text = "Люмен 1.3 · лаунчер для Android\n" +
+                text = "Люмен 1.4 · лаунчер для Android\n" +
                     "Главный экран повторяет «Люмен» из Teable, остальные экраны — свои.",
                 fontSize = 10.sp,
                 color = palette.textSecondary.copy(alpha = 0.85f),
@@ -612,11 +607,11 @@ private fun AddWebAppInline(
 }
 
 @Composable
-private fun ConnectionDialog(
+private fun ConnectionEditorScreen(
     palette: LumenPalette,
     initial: Connection?,
     onSave: (Connection) -> Unit,
-    onDismiss: () -> Unit,
+    onCancel: () -> Unit,
 ) {
     var kind by remember(initial) { mutableStateOf(initial?.kind ?: ServiceKind.TEABLE) }
     var label by remember(initial) { mutableStateOf(initial?.label.orEmpty()) }
@@ -632,155 +627,175 @@ private fun ConnectionDialog(
     var checkOk by remember { mutableStateOf<Boolean?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Новое подключение" else "Изменить подключение") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .height(420.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ServiceKind.entries.forEach { option ->
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (option == kind) palette.accentText.copy(alpha = 0.14f) else Color.Transparent
-                                )
-                                .border(
-                                    1.dp,
-                                    if (option == kind) palette.accentText.copy(alpha = 0.5f) else palette.panelBorder,
-                                    RoundedCornerShape(12.dp),
-                                )
-                                .clickable {
-                                    kind = option
-                                    val isDefaultOfOther = ServiceKind.entries
-                                        .filter { it != option }
-                                        .any { it.defaultBaseUrl == baseUrl }
-                                    if (baseUrl.isBlank() || isDefaultOfOther) baseUrl = option.defaultBaseUrl
-                                }
-                                .padding(vertical = 9.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                option.label,
-                                fontSize = 11.sp,
-                                color = if (option == kind) palette.accentText else palette.textSecondary,
-                                fontWeight = if (option == kind) FontWeight.SemiBold else FontWeight.Normal,
-                            )
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onCancel) {
+                Icon(Icons.Filled.ArrowBack, contentDescription = "Назад", tint = palette.textPrimary)
+            }
+            Column {
+                Text(
+                    text = if (initial == null) "Новое подключение" else "Изменить подключение",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = palette.textPrimary,
+                )
+                Text(
+                    text = kind.hint.take(60),
+                    fontSize = 10.sp,
+                    color = palette.textSecondary,
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ServiceKind.entries.take(2).forEach { option ->
+                    KindPill(option, kind, palette, Modifier.weight(1f)) { selected ->
+                        kind = selected
+                        if (baseUrl.isBlank() || ServiceKind.entries.any { it != selected && it.defaultBaseUrl == baseUrl }) {
+                            baseUrl = selected.defaultBaseUrl
                         }
                     }
                 }
-                Text(kind.hint, fontSize = 10.sp, color = palette.textSecondary)
-                OutlinedTextField(
-                    value = label,
-                    onValueChange = { label = it },
-                    label = { Text("Название (необязательно)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = baseUrl,
-                    onValueChange = { baseUrl = it },
-                    label = { Text(if (kind == ServiceKind.AI) "Адрес API" else "Адрес сервиса") },
-                    placeholder = { Text(kind.defaultBaseUrl.ifBlank { "http://192.168.1.10:4096" }) },
-                    supportingText = {
-                        Text(
-                            if (kind == ServiceKind.AI) "Например https://api.aitunnel.ru/v1 — без кавычек и пробелов"
-                            else "Без кавычек и пробелов; https:// добавится сам",
-                            fontSize = 10.sp,
-                        )
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (kind != ServiceKind.OPENCHAMBER) {
-                    OutlinedTextField(
-                        value = token,
-                        onValueChange = { token = it },
-                        label = { Text(if (kind == ServiceKind.GITHUB) "Токен (необязательно)" else "Ключ / токен") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (kind == ServiceKind.GITHUB || kind == ServiceKind.OPENCHAMBER) {
-                    OutlinedTextField(
-                        value = username,
-                        onValueChange = { username = it },
-                        label = { Text(if (kind == ServiceKind.GITHUB) "Логин GitHub" else "Логин") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (kind == ServiceKind.OPENCHAMBER) {
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Пароль") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (kind == ServiceKind.AI) {
-                    OutlinedTextField(
-                        value = model,
-                        onValueChange = { model = it },
-                        label = { Text("Модель") },
-                        placeholder = { Text("например deepseek-v4.1-flash") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(
-                            enabled = !checking,
-                            onClick = {
-                                checking = true
-                                checkResult = null
-                                checkOk = null
-                                scope.launch {
-                                    val probe = Connection(
-                                        id = initial?.id ?: "probe",
-                                        kind = ServiceKind.AI,
-                                        label = "",
-                                        baseUrl = ru.lumen.launcher.data.normalizeBaseUrl(baseUrl)
-                                            .ifBlank { kind.defaultBaseUrl },
-                                        token = token.trim(),
-                                        model = model.trim(),
-                                    )
-                                    val result = ru.lumen.launcher.data.AiClient.complete(
-                                        probe,
-                                        listOf(
-                                            ru.lumen.launcher.data.ChatMessage(
-                                                "user",
-                                                "Ответь одним словом: работает",
-                                            )
-                                        ),
-                                    )
-                                    checking = false
-                                    checkOk = result.isSuccess
-                                    checkResult = result.fold(
-                                        onSuccess = { "Модель ответила: ${it.take(160)}" },
-                                        onFailure = { it.message ?: "неизвестная ошибка" },
-                                    )
-                                }
-                            },
-                        ) { Text(if (checking) "Проверяю…" else "Проверить связь") }
-                    }
-                    checkResult?.let { message ->
-                        Text(
-                            text = message,
-                            fontSize = 10.sp,
-                            color = if (checkOk == true) palette.accentText else Color(0xFFE24B9A),
-                        )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ServiceKind.entries.drop(2).forEach { option ->
+                    KindPill(option, kind, palette, Modifier.weight(1f)) { selected ->
+                        kind = selected
+                        if (baseUrl.isBlank() || ServiceKind.entries.any { it != selected && it.defaultBaseUrl == baseUrl }) {
+                            baseUrl = selected.defaultBaseUrl
+                        }
                     }
                 }
             }
-        },
-        confirmButton = {
+            Text(kind.hint, fontSize = 11.sp, color = palette.textSecondary)
+
+            OutlinedTextField(
+                value = label,
+                onValueChange = { label = it },
+                label = { Text("Название (необязательно)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = baseUrl,
+                onValueChange = { baseUrl = it },
+                label = { Text(if (kind == ServiceKind.AI) "Адрес API" else "Адрес сервиса") },
+                placeholder = { Text(kind.defaultBaseUrl.ifBlank { "http://192.168.1.10:4096" }) },
+                supportingText = {
+                    Text(
+                        if (kind == ServiceKind.AI) "Например https://api.aitunnel.ru/v1 — без кавычек и пробелов"
+                        else "Без кавычек и пробелов; https:// добавится сам",
+                        fontSize = 10.sp,
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (kind != ServiceKind.OPENCHAMBER) {
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text(if (kind == ServiceKind.GITHUB) "Токен (необязательно)" else "Ключ / токен") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (kind == ServiceKind.GITHUB || kind == ServiceKind.OPENCHAMBER) {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text(if (kind == ServiceKind.GITHUB) "Логин GitHub" else "Логин") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (kind == ServiceKind.OPENCHAMBER) {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Пароль") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (kind == ServiceKind.AI) {
+                OutlinedTextField(
+                    value = model,
+                    onValueChange = { model = it },
+                    label = { Text("Модель") },
+                    placeholder = { Text("например deepseek-v4.1-flash") },
+                    supportingText = { Text("Название модели как в кабинете провайдера", fontSize = 10.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedAction(
+                    text = if (checking) "Проверяю…" else "Проверить связь",
+                    subtitle = "настоящий запрос к модели",
+                    palette = palette,
+                    onClick = {
+                        checking = true
+                        checkResult = null
+                        checkOk = null
+                        scope.launch {
+                            val probe = Connection(
+                                id = initial?.id ?: "probe",
+                                kind = ServiceKind.AI,
+                                label = "",
+                                baseUrl = ru.lumen.launcher.data.normalizeBaseUrl(baseUrl)
+                                    .ifBlank { kind.defaultBaseUrl },
+                                token = token.trim(),
+                                model = model.trim(),
+                            )
+                            val result = ru.lumen.launcher.data.AiClient.complete(
+                                probe,
+                                listOf(
+                                    ru.lumen.launcher.data.ChatMessage(
+                                        "user",
+                                        "Ответь одним словом: работает",
+                                    )
+                                ),
+                            )
+                            checking = false
+                            checkOk = result.isSuccess
+                            checkResult = result.fold(
+                                onSuccess = { "Модель ответила: ${it.take(200)}" },
+                                onFailure = { it.message ?: "неизвестная ошибка" },
+                            )
+                        }
+                    },
+                )
+                checkResult?.let { message ->
+                    Text(
+                        text = message,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        color = if (checkOk == true) palette.accentText else Color(0xFFE24B9A),
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Отмена") }
             TextButton(
                 onClick = {
                     onSave(
@@ -788,7 +803,8 @@ private fun ConnectionDialog(
                             id = initial?.id ?: "conn-" + System.currentTimeMillis(),
                             kind = kind,
                             label = label.trim(),
-                            baseUrl = ru.lumen.launcher.data.normalizeBaseUrl(baseUrl).ifBlank { kind.defaultBaseUrl },
+                            baseUrl = ru.lumen.launcher.data.normalizeBaseUrl(baseUrl)
+                                .ifBlank { kind.defaultBaseUrl },
                             token = token.trim(),
                             username = username.trim(),
                             password = password,
@@ -796,13 +812,42 @@ private fun ConnectionDialog(
                         )
                     )
                 },
+                modifier = Modifier.weight(1f),
             ) { Text("Сохранить") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
-        containerColor = if (palette.isNight) Color(0xFF0E1B22) else Color.White,
-        titleContentColor = palette.textPrimary,
-        textContentColor = palette.textPrimary,
-    )
+        }
+    }
+}
+
+@Composable
+private fun KindPill(
+    option: ServiceKind,
+    current: ServiceKind,
+    palette: LumenPalette,
+    modifier: Modifier = Modifier,
+    onSelect: (ServiceKind) -> Unit,
+) {
+    val selected = option == current
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) palette.accentText.copy(alpha = 0.16f) else palette.panel)
+            .border(
+                1.dp,
+                if (selected) palette.accentText.copy(alpha = 0.5f) else palette.panelBorder,
+                RoundedCornerShape(14.dp),
+            )
+            .clickable { onSelect(option) }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = option.label,
+            fontSize = 13.sp,
+            maxLines = 1,
+            color = if (selected) palette.accentText else palette.textSecondary,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        )
+    }
 }
 
 /** Окно «Навыки персонажа»: переключатели встроенных навыков и свой навык. */
