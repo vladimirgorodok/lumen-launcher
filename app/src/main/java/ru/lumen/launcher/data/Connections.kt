@@ -43,6 +43,19 @@ data class Connection(
     val displayLabel: String get() = label.ifBlank { kind.label }
 }
 
+/**
+ * Приводит адрес сервиса к рабочему виду: убирает кавычки, пробелы и лишний
+ * слэш, при необходимости добавляет https://.
+ */
+fun normalizeBaseUrl(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    var value = raw.trim().trim('"', '\'', '`', '<', '>', ',', ';', ' ', '\u00A0')
+    value = value.replace(Regex("\\s+"), "")
+    if (value.isEmpty()) return ""
+    if (!value.startsWith("http://") && !value.startsWith("https://")) value = "https://$value"
+    return value.trimEnd('/')
+}
+
 fun encodeConnections(connections: List<Connection>): String {
     val array = JSONArray()
     connections.forEach { connection ->
@@ -71,7 +84,7 @@ fun decodeConnections(raw: String?): List<Connection> {
                 val kind = runCatching {
                     ServiceKind.valueOf(item.optString("kind", ServiceKind.TEABLE.name))
                 }.getOrDefault(ServiceKind.TEABLE)
-                val baseUrl = item.optString("baseUrl").trim().ifBlank { kind.defaultBaseUrl }
+                val baseUrl = normalizeBaseUrl(item.optString("baseUrl")).ifBlank { kind.defaultBaseUrl }
                 val id = item.optString("id").ifBlank { "conn-$index" }
                 add(
                     Connection(

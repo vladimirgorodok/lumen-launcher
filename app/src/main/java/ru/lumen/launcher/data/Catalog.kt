@@ -36,7 +36,7 @@ object CatalogLoader {
         }
     }
 
-    private fun base(connection: Connection) = connection.baseUrl.trimEnd('/')
+    private fun base(connection: Connection) = normalizeBaseUrl(connection.baseUrl)
 
     // ── Teable: приложения App Builder ─────────────────────────────
 

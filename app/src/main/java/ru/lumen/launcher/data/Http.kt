@@ -4,9 +4,14 @@ import android.util.Log
 import java.net.HttpURLConnection
 import java.net.URL
 
+data class HttpTextResponse(
+    val code: Int,
+    val body: String,
+    val failure: String? = null,
+)
+
 /** Небольшой HTTP-слой: таймауты, заголовки, текст и байты. */
 object Http {
-
     private const val DEFAULT_TIMEOUT = 8000
 
     fun getText(
@@ -64,6 +69,17 @@ object Http {
         headers: Map<String, String> = emptyMap(),
         timeoutMs: Int = 30000,
     ): String? {
+        val response = postJsonResponse(url, body, headers, timeoutMs)
+        return if (response.code in 200..299) response.body else null
+    }
+
+    /** Ответ сервера целиком: код, тело и причина сбоя связи. */
+    fun postJsonResponse(
+        url: String,
+        body: String,
+        headers: Map<String, String> = emptyMap(),
+        timeoutMs: Int = 30000,
+    ): HttpTextResponse {
         var connection: HttpURLConnection? = null
         return try {
             connection = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -79,14 +95,11 @@ object Http {
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (code in 200..299) text else {
-                Log.w("LumenHttp", "POST $url -> $code ${text.take(200)}")
-                null
-            }
+            if (code !in 200..299) Log.w("LumenHttp", "POST $url -> $code ${text.take(300)}")
+            HttpTextResponse(code = code, body = text)
         } catch (error: Exception) {
             Log.w("LumenHttp", "POST $url failed: ${error.message}")
-            connection?.disconnect()
-            null
+            HttpTextResponse(code = -1, body = "", failure = error.message ?: error.javaClass.simpleName)
         } finally {
             connection?.disconnect()
         }

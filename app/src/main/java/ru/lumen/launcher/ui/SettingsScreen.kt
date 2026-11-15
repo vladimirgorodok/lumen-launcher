@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.NightlightRound
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Timer
@@ -47,10 +48,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import ru.lumen.launcher.data.Connection
 import ru.lumen.launcher.data.LumenSettings
 import ru.lumen.launcher.data.ServiceKind
 import ru.lumen.launcher.data.WebApp
+import ru.lumen.launcher.data.normalizeUrl
 
 @Composable
 fun SettingsScreen(
@@ -64,6 +67,7 @@ fun SettingsScreen(
     onOpenDreamSettings: () -> Unit,
     onAddWebApp: (String, String) -> Unit,
     onDeleteWebApp: (WebApp) -> Unit,
+    onUpdateWebApp: (WebApp, WebApp) -> Unit,
     onSaveConnection: (Connection) -> Unit,
     onDeleteConnection: (Connection) -> Unit,
     onSelectCharacter: (String) -> Unit,
@@ -277,17 +281,22 @@ fun SettingsScreen(
 
             SettingsCard(palette, title = "Подключения", icon = Icons.Filled.CloudDownload) {
                 Text(
-                    "Сервисы, откуда приложения попадают в списки: Teable, GitHub, OpenChamber. " +
-                        "Токен хранится только на устройстве.",
+                    "Сервисы, откуда приложения попадают в списки, и подключение ИИ для персонажа. " +
+                        "Коснитесь строки, чтобы изменить. Токен хранится только на устройстве.",
                     fontSize = 12.sp,
                     color = palette.textSecondary,
                 )
                 Spacer(Modifier.height(10.dp))
+                var editingConnection by remember { mutableStateOf<Connection?>(null) }
+                var addingConnection by remember { mutableStateOf(false) }
+
                 settings.connections.forEach { connection ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 5.dp),
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { editingConnection = connection }
+                            .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
@@ -308,10 +317,21 @@ fun SettingsScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(connection.displayLabel, fontSize = 13.sp, color = palette.textPrimary)
                             Text(
-                                connection.baseUrl,
+                                text = buildString {
+                                    append(connection.baseUrl)
+                                    if (connection.model.isNotBlank()) append(" · ${connection.model}")
+                                },
                                 fontSize = 10.sp,
                                 color = palette.textSecondary,
                                 maxLines = 1,
+                            )
+                        }
+                        IconButton(onClick = { editingConnection = connection }) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = "Изменить подключение",
+                                tint = palette.accentText,
+                                modifier = Modifier.size(18.dp),
                             )
                         }
                         IconButton(onClick = { onDeleteConnection(connection) }) {
@@ -325,7 +345,35 @@ fun SettingsScreen(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                ConnectionEditor(palette = palette, onSave = onSaveConnection)
+                OutlinedAction(
+                    text = "Добавить подключение",
+                    subtitle = "Teable, GitHub, ИИ или OpenChamber",
+                    palette = palette,
+                    onClick = { addingConnection = true },
+                )
+
+                if (addingConnection) {
+                    ConnectionDialog(
+                        palette = palette,
+                        initial = null,
+                        onDismiss = { addingConnection = false },
+                        onSave = {
+                            onSaveConnection(it)
+                            addingConnection = false
+                        },
+                    )
+                }
+                editingConnection?.let { connection ->
+                    ConnectionDialog(
+                        palette = palette,
+                        initial = connection,
+                        onDismiss = { editingConnection = null },
+                        onSave = {
+                            onSaveConnection(it)
+                            editingConnection = null
+                        },
+                    )
+                }
             }
 
             SettingsCard(palette, title = "Веб-приложения", icon = Icons.Filled.Public) {
@@ -335,11 +383,14 @@ fun SettingsScreen(
                     color = palette.textSecondary,
                 )
                 Spacer(Modifier.height(10.dp))
+                var editingWebApp by remember { mutableStateOf<WebApp?>(null) }
                 settings.webApps.forEach { app ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 5.dp),
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { editingWebApp = app }
+                            .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
@@ -370,6 +421,14 @@ fun SettingsScreen(
                                 maxLines = 1,
                             )
                         }
+                        IconButton(onClick = { editingWebApp = app }) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = "Изменить",
+                                tint = palette.accentText,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                         IconButton(onClick = { onDeleteWebApp(app) }) {
                             Icon(
                                 Icons.Filled.Delete,
@@ -380,12 +439,23 @@ fun SettingsScreen(
                         }
                     }
                 }
+                editingWebApp?.let { app ->
+                    WebAppDialog(
+                        palette = palette,
+                        initial = app,
+                        onDismiss = { editingWebApp = null },
+                        onSave = { updated ->
+                            onUpdateWebApp(app, updated)
+                            editingWebApp = null
+                        },
+                    )
+                }
                 Spacer(Modifier.height(6.dp))
                 AddWebAppInline(palette = palette, onAdd = onAddWebApp)
             }
 
             Text(
-                text = "Люмен 1.2.1 · лаунчер для Android\n" +
+                text = "Люмен 1.3 · лаунчер для Android\n" +
                     "Главный экран повторяет «Люмен» из Teable, остальные экраны — свои.",
                 fontSize = 10.sp,
                 color = palette.textSecondary.copy(alpha = 0.85f),
@@ -542,148 +612,197 @@ private fun AddWebAppInline(
 }
 
 @Composable
-private fun ConnectionEditor(
+private fun ConnectionDialog(
     palette: LumenPalette,
+    initial: Connection?,
     onSave: (Connection) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    var open by remember { mutableStateOf(false) }
-    var kind by remember { mutableStateOf(ServiceKind.TEABLE) }
-    var label by remember { mutableStateOf("") }
-    var baseUrl by remember { mutableStateOf(ServiceKind.TEABLE.defaultBaseUrl) }
-    var token by remember { mutableStateOf("") }
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var model by remember { mutableStateOf("") }
-
-    if (!open) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .border(1.dp, palette.panelBorder, RoundedCornerShape(14.dp))
-                .clickable { open = true }
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = null, tint = palette.accentText, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Добавить подключение", fontSize = 13.sp, color = palette.textPrimary)
-        }
-        return
+    var kind by remember(initial) { mutableStateOf(initial?.kind ?: ServiceKind.TEABLE) }
+    var label by remember(initial) { mutableStateOf(initial?.label.orEmpty()) }
+    var baseUrl by remember(initial) {
+        mutableStateOf(initial?.baseUrl?.ifBlank { null } ?: (initial?.kind ?: ServiceKind.TEABLE).defaultBaseUrl)
     }
+    var token by remember(initial) { mutableStateOf(initial?.token.orEmpty()) }
+    var username by remember(initial) { mutableStateOf(initial?.username.orEmpty()) }
+    var password by remember(initial) { mutableStateOf(initial?.password.orEmpty()) }
+    var model by remember(initial) { mutableStateOf(initial?.model.orEmpty()) }
+    var checking by remember { mutableStateOf(false) }
+    var checkResult by remember { mutableStateOf<String?>(null) }
+    var checkOk by remember { mutableStateOf<Boolean?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ServiceKind.entries.forEach { option ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (option == kind) palette.accentText.copy(alpha = 0.14f) else Color.Transparent
-                        )
-                        .border(
-                            1.dp,
-                            if (option == kind) palette.accentText.copy(alpha = 0.5f) else palette.panelBorder,
-                            RoundedCornerShape(12.dp),
-                        )
-                        .clickable {
-                            kind = option
-                            if (baseUrl.isBlank() || baseUrl == ServiceKind.entries.firstOrNull { it != option }?.defaultBaseUrl) {
-                                baseUrl = option.defaultBaseUrl
-                            }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "Новое подключение" else "Изменить подключение") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .height(420.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ServiceKind.entries.forEach { option ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (option == kind) palette.accentText.copy(alpha = 0.14f) else Color.Transparent
+                                )
+                                .border(
+                                    1.dp,
+                                    if (option == kind) palette.accentText.copy(alpha = 0.5f) else palette.panelBorder,
+                                    RoundedCornerShape(12.dp),
+                                )
+                                .clickable {
+                                    kind = option
+                                    val isDefaultOfOther = ServiceKind.entries
+                                        .filter { it != option }
+                                        .any { it.defaultBaseUrl == baseUrl }
+                                    if (baseUrl.isBlank() || isDefaultOfOther) baseUrl = option.defaultBaseUrl
+                                }
+                                .padding(vertical = 9.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                option.label,
+                                fontSize = 11.sp,
+                                color = if (option == kind) palette.accentText else palette.textSecondary,
+                                fontWeight = if (option == kind) FontWeight.SemiBold else FontWeight.Normal,
+                            )
                         }
-                        .padding(vertical = 9.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        option.label,
-                        fontSize = 11.sp,
-                        color = if (option == kind) palette.accentText else palette.textSecondary,
-                        fontWeight = if (option == kind) FontWeight.SemiBold else FontWeight.Normal,
+                    }
+                }
+                Text(kind.hint, fontSize = 10.sp, color = palette.textSecondary)
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    label = { Text("Название (необязательно)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = baseUrl,
+                    onValueChange = { baseUrl = it },
+                    label = { Text(if (kind == ServiceKind.AI) "Адрес API" else "Адрес сервиса") },
+                    placeholder = { Text(kind.defaultBaseUrl.ifBlank { "http://192.168.1.10:4096" }) },
+                    supportingText = {
+                        Text(
+                            if (kind == ServiceKind.AI) "Например https://api.aitunnel.ru/v1 — без кавычек и пробелов"
+                            else "Без кавычек и пробелов; https:// добавится сам",
+                            fontSize = 10.sp,
+                        )
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (kind != ServiceKind.OPENCHAMBER) {
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = { token = it },
+                        label = { Text(if (kind == ServiceKind.GITHUB) "Токен (необязательно)" else "Ключ / токен") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                if (kind == ServiceKind.GITHUB || kind == ServiceKind.OPENCHAMBER) {
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = { username = it },
+                        label = { Text(if (kind == ServiceKind.GITHUB) "Логин GitHub" else "Логин") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (kind == ServiceKind.OPENCHAMBER) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Пароль") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (kind == ServiceKind.AI) {
+                    OutlinedTextField(
+                        value = model,
+                        onValueChange = { model = it },
+                        label = { Text("Модель") },
+                        placeholder = { Text("например deepseek-v4.1-flash") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            enabled = !checking,
+                            onClick = {
+                                checking = true
+                                checkResult = null
+                                checkOk = null
+                                scope.launch {
+                                    val probe = Connection(
+                                        id = initial?.id ?: "probe",
+                                        kind = ServiceKind.AI,
+                                        label = "",
+                                        baseUrl = ru.lumen.launcher.data.normalizeBaseUrl(baseUrl)
+                                            .ifBlank { kind.defaultBaseUrl },
+                                        token = token.trim(),
+                                        model = model.trim(),
+                                    )
+                                    val result = ru.lumen.launcher.data.AiClient.complete(
+                                        probe,
+                                        listOf(
+                                            ru.lumen.launcher.data.ChatMessage(
+                                                "user",
+                                                "Ответь одним словом: работает",
+                                            )
+                                        ),
+                                    )
+                                    checking = false
+                                    checkOk = result.isSuccess
+                                    checkResult = result.fold(
+                                        onSuccess = { "Модель ответила: ${it.take(160)}" },
+                                        onFailure = { it.message ?: "неизвестная ошибка" },
+                                    )
+                                }
+                            },
+                        ) { Text(if (checking) "Проверяю…" else "Проверить связь") }
+                    }
+                    checkResult?.let { message ->
+                        Text(
+                            text = message,
+                            fontSize = 10.sp,
+                            color = if (checkOk == true) palette.accentText else Color(0xFFE24B9A),
+                        )
+                    }
+                }
             }
-        }
-        Text(kind.hint, fontSize = 10.sp, color = palette.textSecondary)
-        OutlinedTextField(
-            value = label,
-            onValueChange = { label = it },
-            label = { Text("Название (необязательно)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = baseUrl,
-            onValueChange = { baseUrl = it },
-            label = { Text("Адрес сервиса") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (kind != ServiceKind.OPENCHAMBER) {
-            OutlinedTextField(
-                value = token,
-                onValueChange = { token = it },
-                label = { Text(if (kind == ServiceKind.GITHUB) "Токен (необязательно)" else "Токен") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        if (kind == ServiceKind.GITHUB || kind == ServiceKind.OPENCHAMBER) {
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text(if (kind == ServiceKind.GITHUB) "Логин GitHub" else "Логин") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        if (kind == ServiceKind.OPENCHAMBER) {
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Пароль") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        if (kind == ServiceKind.AI) {
-            OutlinedTextField(
-                value = model,
-                onValueChange = { model = it },
-                label = { Text("Модель") },
-                placeholder = { Text("например deepseek-v4.1-flash") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        },
+        confirmButton = {
             TextButton(
                 onClick = {
-                    val resolvedBase = baseUrl.trim().ifBlank { kind.defaultBaseUrl }
                     onSave(
                         Connection(
-                            id = "conn-" + System.currentTimeMillis(),
+                            id = initial?.id ?: "conn-" + System.currentTimeMillis(),
                             kind = kind,
                             label = label.trim(),
-                            baseUrl = resolvedBase,
+                            baseUrl = ru.lumen.launcher.data.normalizeBaseUrl(baseUrl).ifBlank { kind.defaultBaseUrl },
                             token = token.trim(),
                             username = username.trim(),
                             password = password,
                             model = model.trim(),
                         )
                     )
-                    label = ""
-                    token = ""
-                    username = ""
-                    password = ""
-                    model = ""
-                    open = false
                 },
             ) { Text("Сохранить") }
-            TextButton(onClick = { open = false }) { Text("Отмена") }
-        }
-    }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+        containerColor = if (palette.isNight) Color(0xFF0E1B22) else Color.White,
+        titleContentColor = palette.textPrimary,
+        textContentColor = palette.textPrimary,
+    )
 }
 
 /** Окно «Навыки персонажа»: переключатели встроенных навыков и свой навык. */
@@ -809,6 +928,72 @@ private fun SkillsDialog(
                     }
                     onSave(ru.lumen.launcher.data.SkillsState(enabledIds = enabled, custom = custom))
                 },
+            ) { Text("Сохранить") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+        containerColor = if (palette.isNight) Color(0xFF0E1B22) else Color.White,
+        titleContentColor = palette.textPrimary,
+        textContentColor = palette.textPrimary,
+    )
+}
+
+/** Окно изменения веб-приложения: название, адрес и своя иконка. */
+@Composable
+private fun WebAppDialog(
+    palette: LumenPalette,
+    initial: WebApp,
+    onSave: (WebApp) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember(initial) { mutableStateOf(initial.name) }
+    var url by remember(initial) { mutableStateOf(initial.url) }
+    var iconUrl by remember(initial) { mutableStateOf(initial.iconUrl.orEmpty()) }
+    val valid = name.isNotBlank() && url.isNotBlank()
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Изменить приложение") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Название") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("Адрес") },
+                    supportingText = { Text("Ссылка на PWA или сайт", fontSize = 10.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = iconUrl,
+                    onValueChange = { iconUrl = it },
+                    label = { Text("Иконка (необязательно)") },
+                    supportingText = {
+                        Text("Прямая ссылка на картинку; пусто — иконка из манифеста", fontSize = 10.sp)
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(
+                        initial.copy(
+                            name = name.trim(),
+                            url = normalizeUrl(url),
+                            iconUrl = iconUrl.trim().ifBlank { null },
+                        )
+                    )
+                },
+                enabled = valid,
             ) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },

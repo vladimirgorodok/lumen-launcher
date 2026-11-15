@@ -363,6 +363,29 @@ private fun WebAppsList(
         return
     }
 
+    var pendingDelete by remember { mutableStateOf<WebApp?>(null) }
+
+    if (pendingDelete != null) {
+        val target = pendingDelete!!
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Удалить приложение?") },
+            text = { Text("«${target.name}» исчезнет из списка. Само приложение в сервисе не пострадает.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = null
+                    onDelete(target)
+                }) { Text("Удалить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Отмена") }
+            },
+            containerColor = if (palette.isNight) Color(0xFF0E1B22) else Color.White,
+            titleContentColor = palette.textPrimary,
+            textContentColor = palette.textPrimary,
+        )
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
@@ -378,7 +401,7 @@ private fun WebAppsList(
                     .border(1.dp, palette.panelBorder, RoundedCornerShape(20.dp))
                     .combinedClickable(
                         onClick = { onOpen(app) },
-                        onLongClick = { onDelete(app) },
+                        onLongClick = { pendingDelete = app },
                     )
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,

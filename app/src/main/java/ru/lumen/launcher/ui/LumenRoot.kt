@@ -472,6 +472,13 @@ fun LumenRoot() {
                                 preferences.setWebApps(settings.webApps.filterNot { it.url == webApp.url })
                             }
                         },
+                        onUpdateWebApp = { original, updated ->
+                            scope.launch {
+                                preferences.setWebApps(
+                                    settings.webApps.map { if (it.url == original.url) updated else it }
+                                )
+                            }
+                        },
                         onSaveConnection = { connection ->
                             scope.launch {
                                 preferences.setConnections(

@@ -54,11 +54,8 @@ fun decodeWebApps(raw: String?): List<WebApp> {
 }
 
 fun normalizeUrl(raw: String): String {
-    val trimmed = raw.trim()
-    if (trimmed.isEmpty()) return ""
-    return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-        trimmed
-    } else {
-        "https://$trimmed"
-    }
+    var value = raw.trim().trim('"', '\'', '`', '<', '>', ',', ';', '\u00A0')
+    value = value.replace(Regex("\\s+"), "")
+    if (value.isEmpty()) return ""
+    return if (value.startsWith("http://") || value.startsWith("https://")) value else "https://$value"
 }

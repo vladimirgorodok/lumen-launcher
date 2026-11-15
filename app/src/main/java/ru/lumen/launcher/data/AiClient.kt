@@ -18,11 +18,19 @@ object AiClient {
         connection: Connection,
         messages: List<ChatMessage>,
     ): Result<String> = withContext(Dispatchers.IO) {
-        if (connection.baseUrl.isBlank()) return@withContext Result.failure(IllegalStateException("Не указан адрес ИИ"))
-        if (connection.model.isBlank()) return@withContext Result.failure(IllegalStateException("Не указана модель"))
+        val baseUrl = normalizeBaseUrl(connection.baseUrl)
+        if (baseUrl.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("не указан адрес ИИ"))
+        }
+        if (connection.token.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("не указан ключ (токен) ИИ"))
+        }
+        if (connection.model.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("не указана модель ИИ"))
+        }
 
         val payload = JSONObject()
-            .put("model", connection.model)
+            .put("model", connection.model.trim())
             .put("temperature", 0.7)
             .put(
                 "messages",
@@ -34,19 +42,45 @@ object AiClient {
             )
             .toString()
 
-        val url = connection.baseUrl.trimEnd('/') + "/chat/completions"
-        val raw = Http.postJson(url, payload, Http.bearer(connection.token))
-            ?: return@withContext Result.failure(IllegalStateException("ИИ не ответил — проверьте адрес, ключ и модель"))
+        val url = "$baseUrl/chat/completions"
+        val response = Http.postJsonResponse(url, payload, Http.bearer(connection.token))
+
+        if (response.failure != null) {
+            return@withContext Result.failure(
+                IllegalStateException("нет связи с $url — ${response.failure}")
+            )
+        }
+        if (response.code !in 200..299) {
+            val detail = errorMessage(response.body)
+            return@withContext Result.failure(
+                IllegalStateException(
+                    buildString {
+                        append("сервер ответил ${response.code}")
+                        if (!detail.isNullOrBlank()) append(": $detail")
+                        append("\n$url")
+                    }
+                )
+            )
+        }
 
         runCatching {
-            val choices = JSONObject(raw).optJSONArray("choices")
+            val choices = JSONObject(response.body).optJSONArray("choices")
             val content = choices?.optJSONObject(0)
                 ?.optJSONObject("message")
                 ?.optString("content")
                 ?.trim()
-            if (content.isNullOrBlank()) throw IllegalStateException("Пустой ответ ИИ")
+            if (content.isNullOrBlank()) throw IllegalStateException("пустой ответ ИИ")
             content
         }
+    }
+
+    /** Понятное описание ошибки из тела ответа OpenAI-совместимого API. */
+    private fun errorMessage(body: String): String? {
+        if (body.isBlank()) return null
+        val json = runCatching { JSONObject(body) }.getOrNull()
+        val message = json?.optJSONObject("error")?.optString("message")
+            ?: json?.optString("message")
+        return message?.trim()?.takeIf { it.isNotBlank() } ?: body.trim().take(200)
     }
 
     /**
