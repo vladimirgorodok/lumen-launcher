@@ -72,6 +72,8 @@ fun AiScreen(
     messages: List<ChatMessage>,
     busy: Boolean,
     status: String?,
+    memoryCount: Int,
+    memoryNames: String?,
     onSend: (String) -> Unit,
     onClear: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -118,7 +120,10 @@ fun AiScreen(
                     color = palette.textPrimary,
                 )
                 Text(
-                    text = "${character.tagline} · навыков: ${skills.size}",
+                    text = buildString {
+                        append("${character.tagline} · навыков: ${skills.size}")
+                        append(" · помню: $memoryCount")
+                    },
                     fontSize = 10.sp,
                     letterSpacing = 0.6.sp,
                     color = palette.textSecondary,
@@ -197,9 +202,12 @@ fun AiScreen(
                 if (messages.isEmpty()) {
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         Text(
-                            text = "Поздоровайтесь с ${character.name}.\n" +
-                                "Персонаж умеет ставить будильник, показывать уведомления,\n" +
-                                "копировать текст и открывать приложения.",
+                            text = buildString {
+                                if (memoryNames != null) append("${character.name} помнит: $memoryNames.\n")
+                                append("Скажите «запомни, что меня зовут …» — и это останется в памяти.\n")
+                                append("Персонаж умеет ставить будильник, показывать уведомления,\n")
+                                append("копировать текст и открывать приложения.")
+                            },
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
                             color = palette.textSecondary,

@@ -11,6 +11,47 @@ data class ChatMessage(
     val action: String? = null,
 )
 
+/** Сколько сообщений диалога храним на каждого персонажа. */
+const val CHAT_HISTORY_LIMIT = 40
+
+fun encodeChats(chats: Map<String, List<ChatMessage>>): String {
+    val json = JSONObject()
+    chats.forEach { (characterId, messages) ->
+        val array = JSONArray()
+        messages.takeLast(CHAT_HISTORY_LIMIT).forEach { message ->
+            array.put(JSONObject().put("role", message.role).put("content", message.content))
+        }
+        json.put(characterId, array)
+    }
+    return json.toString()
+}
+
+fun decodeChats(raw: String?): Map<String, List<ChatMessage>> {
+    if (raw.isNullOrBlank()) return emptyMap()
+    return runCatching {
+        val json = JSONObject(raw)
+        buildMap {
+            json.keys().forEach { characterId ->
+                val array = json.optJSONArray(characterId) ?: return@forEach
+                val messages = buildList {
+                    for (index in 0 until array.length()) {
+                        val item = array.optJSONObject(index) ?: continue
+                        val content = item.optString("content")
+                        if (content.isBlank()) continue
+                        add(
+                            ChatMessage(
+                                role = item.optString("role").ifBlank { "assistant" },
+                                content = content,
+                            )
+                        )
+                    }
+                }
+                put(characterId, messages)
+            }
+        }
+    }.getOrDefault(emptyMap())
+}
+
 object AiClient {
 
     /** Ответ персонажа через OpenAI-совместимое подключение. */

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.NightlightRound
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
@@ -76,12 +77,31 @@ fun SettingsScreen(
     onShowBuilds: (Boolean) -> Unit,
     onSaveBuildsUrl: (String) -> Unit,
     onRefreshBuilds: () -> Unit,
+    onRememberChat: (Boolean) -> Unit,
+    onAddFact: (String) -> Unit,
+    onDeleteFact: (String) -> Unit,
+    onClearMemory: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var addingConnection by remember { mutableStateOf(false) }
     var editingConnection by remember { mutableStateOf<Connection?>(null) }
     var buildsUrl by remember(settings.buildsUrl) { mutableStateOf(settings.buildsUrl) }
+    var memoryOpen by remember { mutableStateOf(false) }
+
+    if (memoryOpen) {
+        MemoryScreen(
+            palette = palette,
+            facts = settings.facts,
+            rememberChat = settings.rememberChat,
+            onAdd = onAddFact,
+            onDelete = onDeleteFact,
+            onClear = onClearMemory,
+            onRememberChat = onRememberChat,
+            onBack = { memoryOpen = false },
+        )
+        return
+    }
 
     if (addingConnection || editingConnection != null) {
         ConnectionEditorScreen(
@@ -304,6 +324,46 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsCard(palette, title = "Память персонажа", icon = Icons.Filled.Psychology) {
+                Text(
+                    "Персонаж помнит то, что вы рассказали: имя, день рождения, город, привычки. " +
+                        "Достаточно сказать «запомни, что меня зовут …» — память работает даже без " +
+                        "подключения ИИ.",
+                    fontSize = 12.sp,
+                    color = palette.textSecondary,
+                )
+                Spacer(Modifier.height(10.dp))
+                if (settings.facts.isEmpty()) {
+                    Text(
+                        "Пока пусто.",
+                        fontSize = 12.sp,
+                        color = palette.textSecondary,
+                    )
+                } else {
+                    settings.facts.takeLast(3).forEach { fact ->
+                        Text(
+                            text = "• ${fact.text}",
+                            fontSize = 12.sp,
+                            color = palette.textPrimary,
+                        )
+                    }
+                    if (settings.facts.size > 3) {
+                        Text(
+                            "и ещё ${settings.facts.size - 3}",
+                            fontSize = 11.sp,
+                            color = palette.textSecondary,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedAction(
+                    text = "Память персонажа",
+                    subtitle = "фактов: ${settings.facts.size}",
+                    palette = palette,
+                    onClick = { memoryOpen = true },
+                )
+            }
+
             SettingsCard(palette, title = "Приложения отсюда", icon = Icons.Filled.Android) {
                 Text(
                     "Вкладка «Отсюда» в списке приложений: сборки, сделанные в opencode/OpenChamber. " +
@@ -503,7 +563,7 @@ fun SettingsScreen(
             }
 
             Text(
-                text = "Люмен 1.5 · лаунчер для Android\n" +
+                text = "Люмен 1.6 · лаунчер для Android\n" +
                     "Главный экран повторяет «Люмен» из Teable, остальные экраны — свои.",
                 fontSize = 10.sp,
                 color = palette.textSecondary.copy(alpha = 0.85f),

@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.lumenDataStore by preferencesDataStore(name = "lumen_prefs")
@@ -22,6 +23,9 @@ data class LumenSettings(
     val skills: SkillsState = SkillsState(),
     val buildsUrl: String = BuildsRegistry.DEFAULT_URL,
     val showBuilds: Boolean = true,
+    val facts: List<MemoryFact> = emptyList(),
+    val rememberChat: Boolean = true,
+    val chats: Map<String, List<ChatMessage>> = emptyMap(),
     val weatherCache: String? = null,
 )
 
@@ -37,6 +41,9 @@ class LumenPreferences(private val context: Context) {
         val skills = stringPreferencesKey("skills")
         val buildsUrl = stringPreferencesKey("builds_url")
         val showBuilds = booleanPreferencesKey("show_builds")
+        val memory = stringPreferencesKey("memory_facts")
+        val rememberChat = booleanPreferencesKey("remember_chat")
+        val chatHistory = stringPreferencesKey("chat_history")
         val weatherCache = stringPreferencesKey("weather_cache")
     }
 
@@ -51,6 +58,9 @@ class LumenPreferences(private val context: Context) {
             skills = decodeSkills(prefs[Keys.skills]),
             buildsUrl = prefs[Keys.buildsUrl] ?: BuildsRegistry.DEFAULT_URL,
             showBuilds = prefs[Keys.showBuilds] ?: true,
+            facts = Memory.decode(prefs[Keys.memory]),
+            rememberChat = prefs[Keys.rememberChat] ?: true,
+            chats = decodeChats(prefs[Keys.chatHistory]),
             weatherCache = prefs[Keys.weatherCache],
         )
     }
@@ -92,6 +102,31 @@ class LumenPreferences(private val context: Context) {
     suspend fun setShowBuilds(show: Boolean) {
         context.lumenDataStore.edit { it[Keys.showBuilds] = show }
     }
+
+    suspend fun setMemory(facts: List<MemoryFact>) {
+        context.lumenDataStore.edit { it[Keys.memory] = Memory.encode(facts) }
+    }
+
+    suspend fun setRememberChat(remember: Boolean) {
+        context.lumenDataStore.edit { it[Keys.rememberChat] = remember }
+    }
+
+    /** История диалога: пишем только последние сообщения каждого персонажа. */
+    suspend fun setChatHistory(characterId: String, messages: List<ChatMessage>) {
+        context.lumenDataStore.edit { prefs ->
+            val current = decodeChats(prefs[Keys.chatHistory]).toMutableMap()
+            if (messages.isEmpty()) {
+                current.remove(characterId)
+            } else {
+                current[characterId] = messages.takeLast(CHAT_HISTORY_LIMIT)
+            }
+            prefs[Keys.chatHistory] = encodeChats(current)
+        }
+    }
+
+    /** История диалога персонажа — читается сразу из хранилища. */
+    suspend fun chatFor(characterId: String): List<ChatMessage> =
+        settings.first().chats[characterId].orEmpty()
 
     suspend fun setWeatherCache(raw: String?) {
         context.lumenDataStore.edit { prefs ->

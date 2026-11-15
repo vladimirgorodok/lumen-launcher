@@ -65,25 +65,13 @@
    "id": "lumen-launcher",
    "name": "Люмен",
    "package": "ru.lumen.launcher",
-   "version": "1.5",
-   "description": "Нативный лаунчер для Android: часы, погода, приложения и заставка в стиле «Люмена»",
+   "version": "1.6",
+   "description": "Нативный лаунчер для Android: часы, погода, приложения, заставка и персонаж ИИ с памятью",
    "repo": "vladimirgorodok/lumen-launcher",
-   "releaseUrl": "https://github.com/vladimirgorodok/lumen-launcher/releases/tag/v1.5",
-   "apkUrl": "https://github.com/vladimirgorodok/lumen-launcher/releases/download/v1.5/Lumen-v1.5.apk",
+   "releaseUrl": "https://github.com/vladimirgorodok/lumen-launcher/releases/tag/v1.6",
+   "apkUrl": "https://github.com/vladimirgorodok/lumen-launcher/releases/download/v1.6/Lumen-v1.6.apk",
    "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/lumen-launcher.png",
-   "size": 11423623
-  },
-  {
-   "id": "platezhi_openchamber",
-   "name": "Платежи",
-   "package": "ru.platezhi.app",
-   "version": "1.2",
-   "description": "Модифицированный проект Platezhi 1.2 (ru.platezhi.app): CSV экспорт/импорт, облако (share), настройки",
-   "repo": "vladimirgorodok/Platezhi_openchamber",
-   "releaseUrl": "https://github.com/vladimirgorodok/Platezhi_openchamber/releases/tag/v1.2-mod.29",
-   "apkUrl": "https://github.com/vladimirgorodok/Platezhi_openchamber/releases/download/v1.2-mod.29/Platezhi-modified.apk",
-   "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/platezhi_openchamber.png",
-   "size": 1363148
+   "size": 11456391
   },
   {
    "id": "platezhi2",

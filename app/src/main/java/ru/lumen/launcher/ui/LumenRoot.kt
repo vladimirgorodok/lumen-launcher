@@ -102,6 +102,8 @@ import ru.lumen.launcher.data.InstalledApp
 import ru.lumen.launcher.data.LocationProvider
 import ru.lumen.launcher.data.LumenPreferences
 import ru.lumen.launcher.data.LumenSettings
+import ru.lumen.launcher.data.Memory
+import ru.lumen.launcher.data.MemoryFact
 import ru.lumen.launcher.data.ServiceKind
 import ru.lumen.launcher.data.Skill
 import ru.lumen.launcher.data.WeatherClient
@@ -163,47 +165,119 @@ fun LumenRoot() {
     val enabledSkills = settings.skills.enabled
     val aiConnection = settings.connections.firstOrNull { it.kind == ServiceKind.AI }
 
-    val sendToCharacter: (String) -> Unit = { text ->
-        chat = chat + ChatMessage("user", text)
-        val connection = aiConnection
-        if (connection == null) {
-            chat = chat + ChatMessage(
-                "assistant",
-                "Нет подключения ИИ. Добавьте его в «Настройки → Подключения → ИИ»: адрес, ключ и модель.",
-            )
-        } else {
-            scope.launch {
-                aiBusy = true
-                aiStatus = "Отправляю запрос…"
-                val system = buildCharacterPrompt(character, enabledSkills)
-                val history = chat.takeLast(20).map { ChatMessage(it.role, it.content) }
-                val result = AiClient.complete(connection, listOf(ChatMessage("system", system)) + history)
-                aiBusy = false
-                aiStatus = null
-                result.fold(
-                    onSuccess = { reply ->
-                        val command = AiClient.parseAction(reply)
-                        val canAct = enabledSkills.any { it.id == "android-device" }
-                        when {
-                            command == null -> chat = chat + ChatMessage("assistant", reply)
-                            canAct -> {
-                                val outcome = deviceActions.execute(command)
-                                chat = chat + ChatMessage("assistant", outcome)
-                            }
-                            else -> chat = chat + ChatMessage(
-                                "assistant",
-                                "Хотел выполнить действие «${command.action}», но навык «Телефон» выключен. " +
-                                    "Включите его в «Настройках → Персонаж → Навыки персонажа».",
-                            )
-                        }
-                    },
-                    onFailure = { error ->
-                        chat = chat + ChatMessage(
-                            "assistant",
-                            "Не получилось: ${error.message ?: "неизвестная ошибка"}",
-                        )
-                    },
+    // Память и диалог переживают перезапуск лаунчера.
+    var loadKey by remember { mutableStateOf<String?>(null) }
+    var chatLoaded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(settings.characterId, settings.rememberChat) {
+        val key = "${settings.characterId}|${settings.rememberChat}"
+        if (loadKey == key) return@LaunchedEffect
+        chat = if (settings.rememberChat) preferences.chatFor(settings.characterId) else emptyList()
+        loadKey = key
+        chatLoaded = true
+    }
+
+    LaunchedEffect(chat, chatLoaded, settings.rememberChat) {
+        if (!chatLoaded || !settings.rememberChat) return@LaunchedEffect
+        preferences.setChatHistory(settings.characterId, chat)
+    }
+
+    val persistFacts: (List<MemoryFact>) -> Unit = { facts ->
+        scope.launch { preferences.setMemory(facts) }
+    }
+
+    val sendToCharacter: (String) -> Unit = { raw ->
+        val text = raw.trim()
+        if (text.isNotEmpty()) {
+            chat = chat + ChatMessage("user", text)
+            var facts = settings.facts
+            var note: String? = null
+
+            // Сначала память: работает даже без модели.
+            val toLearn = Memory.extract(text) ?: Memory.extractImplicit(text)
+            if (toLearn != null) {
+                facts = Memory.learn(facts, toLearn)
+                note = "Запомнил: $toLearn"
+            }
+            val toForget = Memory.extractForget(text)
+            if (toForget != null) {
+                val before = facts.size
+                facts = Memory.forget(facts, toForget)
+                note = if (facts.size < before) "Забыл: $toForget" else "В памяти такого не было: $toForget"
+            }
+            if (facts !== settings.facts) persistFacts(facts)
+
+            val connection = aiConnection
+            val fromMemory = Memory.localAnswer(text, facts)
+            when {
+                // Прямой вопрос о том, что помнится, — отвечаем сразу, без модели.
+                fromMemory != null -> chat = chat + ChatMessage("assistant", fromMemory)
+
+                connection == null -> chat = chat + ChatMessage(
+                    "assistant",
+                    note?.let {
+                        "$it.\n\nПодключение ИИ не настроено, поэтому поговорить не получится: " +
+                            "добавьте адрес, ключ и модель в «Настройки → Подключения → ИИ»."
+                    } ?: "Нет подключения ИИ. Добавьте его в «Настройки → Подключения → ИИ»: адрес, ключ и модель.",
                 )
+
+                else -> scope.launch {
+                    aiBusy = true
+                    aiStatus = "Отправляю запрос…"
+                    val system = buildCharacterPrompt(character, enabledSkills, facts)
+                    val history = chat.takeLast(20).map { ChatMessage(it.role, it.content) }
+                    val result = AiClient.complete(connection, listOf(ChatMessage("system", system)) + history)
+                    aiBusy = false
+                    aiStatus = null
+                    result.fold(
+                        onSuccess = { reply ->
+                            val command = AiClient.parseAction(reply)
+                            val canAct = enabledSkills.any { it.id == "android-device" }
+                            when {
+                                command == null -> chat = chat + ChatMessage(
+                                    "assistant",
+                                    withMemoryNote(reply, note),
+                                )
+
+                                command.action == "remember" -> {
+                                    val fact = command.text.ifBlank { text }
+                                    val learned = Memory.learn(facts, fact, "ai")
+                                    facts = learned
+                                    persistFacts(learned)
+                                    chat = chat + ChatMessage("assistant", "Запомнил: $fact")
+                                }
+
+                                command.action == "forget" -> {
+                                    val query = command.text.ifBlank { text }
+                                    val kept = Memory.forget(facts, query)
+                                    facts = kept
+                                    persistFacts(kept)
+                                    chat = chat + ChatMessage("assistant", "Забыл: $query")
+                                }
+
+                                canAct -> {
+                                    val outcome = deviceActions.execute(command)
+                                    chat = chat + ChatMessage("assistant", outcome)
+                                }
+
+                                else -> chat = chat + ChatMessage(
+                                    "assistant",
+                                    "Хотел выполнить действие «${command.action}», но навык «Телефон» выключен. " +
+                                        "Включите его в «Настройках → Персонаж → Навыки персонажа».",
+                                )
+                            }
+                        },
+                        onFailure = { error ->
+                            chat = chat + ChatMessage(
+                                "assistant",
+                                buildString {
+                                    if (note != null) append("$note\n\n")
+                                    append("Не получилось: ${error.message ?: "неизвестная ошибка"}")
+                                },
+                            )
+                        },
+                    )
+                }
             }
         }
     }
@@ -508,6 +582,8 @@ fun LumenRoot() {
                         messages = chat,
                         busy = aiBusy,
                         status = aiStatus,
+                        memoryCount = settings.facts.size,
+                        memoryNames = Memory.name(settings.facts),
                         onSend = sendToCharacter,
                         onClear = { chat = emptyList() },
                         onOpenSettings = { screen = Screen.SETTINGS },
@@ -582,6 +658,18 @@ fun LumenRoot() {
                             buildsRefresh += 1
                         },
                         onRefreshBuilds = { buildsRefresh += 1 },
+                        onRememberChat = { remember ->
+                            scope.launch { preferences.setRememberChat(remember) }
+                        },
+                        onAddFact = { fact ->
+                            scope.launch { preferences.setMemory(Memory.learn(settings.facts, fact)) }
+                        },
+                        onDeleteFact = { id ->
+                            scope.launch { preferences.setMemory(Memory.remove(settings.facts, id)) }
+                        },
+                        onClearMemory = {
+                            scope.launch { preferences.setMemory(emptyList()) }
+                        },
                         onBack = { screen = Screen.CLOCK },
                     )
                 }
@@ -818,9 +906,14 @@ private fun LumenMark(palette: LumenPalette) {
 }
 
 /** Характер персонажа плюс подключённые навыки; для действий — строгий JSON-протокол. */
-private fun buildCharacterPrompt(character: Character, skills: List<Skill>): String = buildString {
+private fun buildCharacterPrompt(
+    character: Character,
+    skills: List<Skill>,
+    facts: List<MemoryFact>,
+): String = buildString {
     append("Ты — ${character.name}, ${character.tagline}. ${character.style} ")
     append("Отвечай по-русски, коротко и по делу.")
+    append(Memory.promptBlock(facts))
     if (skills.isNotEmpty()) {
         append("\n\nПодключённые навыки:")
         skills.forEach { skill ->
@@ -837,6 +930,15 @@ private fun buildCharacterPrompt(character: Character, skills: List<Skill>): Str
                 "Если действие не нужно — отвечай обычным текстом."
         )
     }
+}
+
+/** Добавляет «Запомнил: …», если модель не сказала об этом сама. */
+private fun withMemoryNote(reply: String, note: String?): String {
+    if (note == null) return reply
+    val lower = reply.lowercase()
+    val acknowledged = listOf("запомн", "записал", "помню", "буду помнить", "усвоил")
+        .any { lower.contains(it) }
+    return if (acknowledged) reply else "$note\n\n$reply"
 }
 
 private fun openExternal(context: Context, url: String) {
