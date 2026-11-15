@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudDownload
@@ -72,11 +73,15 @@ fun SettingsScreen(
     onDeleteConnection: (Connection) -> Unit,
     onSelectCharacter: (String) -> Unit,
     onSaveSkills: (ru.lumen.launcher.data.SkillsState) -> Unit,
+    onShowBuilds: (Boolean) -> Unit,
+    onSaveBuildsUrl: (String) -> Unit,
+    onRefreshBuilds: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var addingConnection by remember { mutableStateOf(false) }
     var editingConnection by remember { mutableStateOf<Connection?>(null) }
+    var buildsUrl by remember(settings.buildsUrl) { mutableStateOf(settings.buildsUrl) }
 
     if (addingConnection || editingConnection != null) {
         ConnectionEditorScreen(
@@ -299,6 +304,54 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsCard(palette, title = "Приложения отсюда", icon = Icons.Filled.Android) {
+                Text(
+                    "Вкладка «Отсюда» в списке приложений: сборки, сделанные в opencode/OpenChamber. " +
+                        "Список берётся из реестра, а репозитории с APK подхватываются с GitHub " +
+                        "автоматически — но только если у подключения GitHub указан токен.",
+                    fontSize = 12.sp,
+                    color = palette.textSecondary,
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Показывать вкладку", fontSize = 13.sp, color = palette.textPrimary)
+                        Text(
+                            "выключено — вкладка скрыта, реестр не читается",
+                            fontSize = 11.sp,
+                            color = palette.textSecondary,
+                        )
+                    }
+                    Switch(
+                        checked = settings.showBuilds,
+                        onCheckedChange = onShowBuilds,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = palette.accentText,
+                        ),
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = buildsUrl,
+                    onValueChange = { buildsUrl = it },
+                    label = { Text("Адрес реестра сборок") },
+                    supportingText = {
+                        Text("JSON со списком: имя, пакет, версия, ссылки на APK и иконку", fontSize = 10.sp)
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onSaveBuildsUrl(buildsUrl) }) { Text("Сохранить адрес") }
+                    TextButton(onClick = { buildsUrl = ru.lumen.launcher.data.BuildsRegistry.DEFAULT_URL }) {
+                        Text("По умолчанию")
+                    }
+                    TextButton(onClick = onRefreshBuilds) { Text("Обновить") }
+                }
+            }
+
             SettingsCard(palette, title = "Подключения", icon = Icons.Filled.CloudDownload) {
                 Text(
                     "Сервисы, откуда приложения попадают в списки, и подключение ИИ для персонажа. " +
@@ -450,7 +503,7 @@ fun SettingsScreen(
             }
 
             Text(
-                text = "Люмен 1.4 · лаунчер для Android\n" +
+                text = "Люмен 1.5 · лаунчер для Android\n" +
                     "Главный экран повторяет «Люмен» из Teable, остальные экраны — свои.",
                 fontSize = 10.sp,
                 color = palette.textSecondary.copy(alpha = 0.85f),

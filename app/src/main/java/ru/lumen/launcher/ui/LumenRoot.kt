@@ -85,6 +85,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.lumen.launcher.data.AiClient
 import ru.lumen.launcher.data.AppsRepository
+import ru.lumen.launcher.data.BuildApp
+import ru.lumen.launcher.data.BuildInstaller
+import ru.lumen.launcher.data.BuildsRegistry
+import ru.lumen.launcher.data.BuildsState
 import ru.lumen.launcher.data.CatalogLoader
 import ru.lumen.launcher.data.CatalogState
 import ru.lumen.launcher.data.Character
@@ -146,6 +150,13 @@ fun LumenRoot() {
     var aiBusy by remember { mutableStateOf(false) }
     var aiStatus by remember { mutableStateOf<String?>(null) }
     val deviceActions = remember { DeviceActions(context, appsRepository) }
+
+    var builds by remember { mutableStateOf<List<BuildApp>>(emptyList()) }
+    var buildsState by remember { mutableStateOf<BuildsState>(BuildsState.Loading) }
+    var buildsRefresh by remember { mutableIntStateOf(0) }
+    var installProgress by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
+    var installMessage by remember { mutableStateOf<String?>(null) }
+    val buildInstaller = remember { BuildInstaller(context) }
 
     val character = characterById(settings.characterId)
     val enabledSkills = settings.skills.enabled
@@ -260,6 +271,8 @@ fun LumenRoot() {
         lastInteraction = System.currentTimeMillis()
         isDefaultLauncher = appsRepository.isDefaultLauncher()
         if (weather is WeatherUiState.Ready) weatherRefresh += 1
+        // после установки APK список и набор пакетов должны обновиться
+        appsRefresh += 1
     }
 
     LaunchedEffect(Unit) {
@@ -278,8 +291,34 @@ fun LumenRoot() {
         isDefaultLauncher = appsRepository.isDefaultLauncher()
     }
 
-    LaunchedEffect(settings.connections, catalogRefresh) {
-        val connections = settings.connections
+    LaunchedEffect(settings.buildsUrl, settings.showBuilds, buildsRefresh, settings.connections) {
+        if (!settings.showBuilds) {
+            builds = emptyList()
+            buildsState = BuildsState.Ready(emptyList())
+            return@LaunchedEffect
+        }
+        buildsState = BuildsState.Loading
+        val registry = BuildsRegistry.load(settings.buildsUrl)
+        val known = registry.getOrDefault(emptyList()).map { it.repo.lowercase() }.toSet()
+        val discovered = settings.connections
+            .filter { it.kind == ServiceKind.GITHUB && it.token.isNotBlank() }
+            .flatMap { connection ->
+                runCatching { BuildsRegistry.discover(connection, known) }.getOrDefault(emptyList())
+            }
+        buildsState = registry.fold(
+            onSuccess = { apps -> BuildsState.Ready(apps + discovered) },
+            onFailure = { error ->
+                if (discovered.isNotEmpty()) BuildsState.Ready(discovered)
+                else BuildsState.Error(error.message ?: "реестр недоступен")
+            },
+        )
+        builds = when (val state = buildsState) {
+            is BuildsState.Ready -> state.apps
+            else -> emptyList()
+        }
+    }
+
+    LaunchedEffect(settings.connections, catalogRefresh) {        val connections = settings.connections
         catalogs = connections.associate { it.id to CatalogState.Loading }
         connections.forEach { connection ->
             val state = CatalogLoader.load(connection)
@@ -394,8 +433,44 @@ fun LumenRoot() {
                         webApps = settings.webApps,
                         connections = settings.connections,
                         catalogs = catalogs,
+                        builds = builds,
+                        buildsState = buildsState,
+                        showBuilds = settings.showBuilds,
+                        installedPackages = installed.map { it.packageName }.toSet() + context.packageName,
+                        installProgress = installProgress,
+                        selfPackage = context.packageName,
                         onLaunch = { appsRepository.launch(it) },
                         onAppInfo = { appsRepository.openAppInfo(it) },
+                        onLaunchPackage = { packageName ->
+                            installed.firstOrNull { it.packageName == packageName }?.let { appsRepository.launch(it) }
+                                ?: run {
+                                    val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+                                    if (intent != null) {
+                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        runCatching { context.startActivity(intent) }
+                                    }
+                                }
+                        },
+                        onInstallBuild = { build ->
+                            scope.launch {
+                                installProgress = installProgress + (build.id to 0f)
+                                val result = buildInstaller.download(build) { fraction ->
+                                    installProgress = installProgress + (build.id to fraction)
+                                }
+                                installProgress = installProgress - build.id
+                                result.fold(
+                                    onSuccess = { file ->
+                                        buildInstaller.install(file).onFailure { error ->
+                                            installMessage = "Не удалось открыть установщик: ${error.message}"
+                                        }
+                                    },
+                                    onFailure = { error ->
+                                        installMessage = "Скачать не получилось: ${error.message}"
+                                    },
+                                )
+                            }
+                        },
+                        onRefreshBuilds = { buildsRefresh += 1 },
                         onOpenUrl = { name, url -> openWebContainer(context, name, url) },
                         onAddWebApp = { name, url, iconUrl ->
                             scope.launch {
@@ -497,6 +572,14 @@ fun LumenRoot() {
                         onSaveSkills = { state ->
                             scope.launch { preferences.setSkills(state) }
                         },
+                        onShowBuilds = { show ->
+                            scope.launch { preferences.setShowBuilds(show) }
+                        },
+                        onSaveBuildsUrl = { url ->
+                            scope.launch { preferences.setBuildsUrl(url) }
+                            buildsRefresh += 1
+                        },
+                        onRefreshBuilds = { buildsRefresh += 1 },
                         onBack = { screen = Screen.CLOCK },
                     )
                 }
@@ -518,6 +601,22 @@ fun LumenRoot() {
                     registerInteraction()
                     saverActive = false
                 },
+            )
+        }
+
+        installMessage?.let { message ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { installMessage = null },
+                title = { Text("Установка приложения") },
+                text = { Text(message) },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = { installMessage = null }) {
+                        Text("Понятно")
+                    }
+                },
+                containerColor = if (palette.isNight) Color(0xFF0E1B22) else Color.White,
+                titleContentColor = palette.textPrimary,
+                textContentColor = palette.textPrimary,
             )
         }
     }

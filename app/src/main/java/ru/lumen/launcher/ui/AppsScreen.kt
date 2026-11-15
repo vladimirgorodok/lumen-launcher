@@ -61,6 +61,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.lumen.launcher.data.BuildApp
+import ru.lumen.launcher.data.BuildsState
 import ru.lumen.launcher.data.CatalogApp
 import ru.lumen.launcher.data.CatalogState
 import ru.lumen.launcher.data.Connection
@@ -70,6 +72,7 @@ import ru.lumen.launcher.data.normalizeUrl
 
 private sealed interface AppsTab {
     data object Installed : AppsTab
+    data object Builds : AppsTab
     data object Web : AppsTab
     data class Service(val connection: Connection) : AppsTab
 }
@@ -82,19 +85,29 @@ fun AppsScreen(
     webApps: List<WebApp>,
     connections: List<Connection>,
     catalogs: Map<String, CatalogState>,
+    builds: List<BuildApp>,
+    buildsState: BuildsState,
+    showBuilds: Boolean,
+    installedPackages: Set<String>,
+    installProgress: Map<String, Float>,
+    selfPackage: String,
     onLaunch: (InstalledApp) -> Unit,
     onAppInfo: (InstalledApp) -> Unit,
     onOpenUrl: (name: String, url: String) -> Unit,
     onAddWebApp: (name: String, url: String, iconUrl: String?) -> Unit,
     onDeleteWebApp: (WebApp) -> Unit,
     onRefreshCatalog: (Connection) -> Unit,
+    onRefreshBuilds: () -> Unit,
+    onLaunchPackage: (String) -> Unit,
+    onInstallBuild: (BuildApp) -> Unit,
     onRefresh: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tabs = remember(connections, installed.size, webApps.size) {
+    val tabs = remember(connections, installed.size, webApps.size, showBuilds) {
         buildList {
             add(AppsTab.Installed)
+            if (showBuilds) add(AppsTab.Builds)
             add(AppsTab.Web)
             connections.forEach { add(AppsTab.Service(it)) }
         }
@@ -156,6 +169,7 @@ fun AppsScreen(
                 TabPill(
                     text = when (tab) {
                         AppsTab.Installed -> "Приложения · ${installed.size}"
+                        AppsTab.Builds -> "Отсюда · ${builds.size}"
                         AppsTab.Web -> "Веб · ${webApps.size}"
                         is AppsTab.Service -> {
                             val count = (catalogs[tab.connection.id] as? CatalogState.Ready)?.apps?.size
@@ -189,6 +203,20 @@ fun AppsScreen(
                 loading = loading,
                 onLaunch = onLaunch,
                 onAppInfo = onAppInfo,
+                modifier = Modifier.weight(1f),
+            )
+
+            AppsTab.Builds -> BuildsList(
+                palette = palette,
+                apps = builds,
+                state = buildsState,
+                installedPackages = installedPackages,
+                installProgress = installProgress,
+                selfPackage = selfPackage,
+                onLaunchPackage = onLaunchPackage,
+                onOpenUrl = onOpenUrl,
+                onInstall = onInstallBuild,
+                onRetry = onRefreshBuilds,
                 modifier = Modifier.weight(1f),
             )
 
@@ -343,10 +371,170 @@ private fun InstalledGrid(
     }
 }
 
+/** Вкладка «Отсюда»: сборки, сделанные в opencode/OpenChamber. */
+@Composable
+private fun BuildsList(
+    palette: LumenPalette,
+    apps: List<BuildApp>,
+    state: BuildsState,
+    installedPackages: Set<String>,
+    installProgress: Map<String, Float>,
+    selfPackage: String,
+    onLaunchPackage: (String) -> Unit,
+    onOpenUrl: (name: String, url: String) -> Unit,
+    onInstall: (BuildApp) -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (state is BuildsState.Loading && apps.isEmpty()) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = palette.accentText)
+                Spacer(Modifier.height(10.dp))
+                Text("Читаю список сборок…", color = palette.textSecondary, fontSize = 12.sp)
+            }
+        }
+        return
+    }
+    if (state is BuildsState.Error && apps.isEmpty()) {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 28.dp),
+            ) {
+                Text(state.message, color = palette.textPrimary, fontSize = 13.sp, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = onRetry) { Text("Повторить") }
+            }
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        items(apps, key = { it.id }) { app ->
+            val isSelf = app.packageName.isNotBlank() && app.packageName == selfPackage
+            val installed = app.packageName.isNotBlank() && app.packageName in installedPackages
+            val progress = installProgress[app.id]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(palette.panel)
+                    .border(
+                        1.dp,
+                        if (installed) palette.accentText.copy(alpha = 0.35f) else palette.panelBorder,
+                        RoundedCornerShape(20.dp),
+                    )
+                    .clickable {
+                        if (installed) onLaunchPackage(app.packageName)
+                        else if (app.releaseUrl.isNotBlank()) onOpenUrl(app.name, app.releaseUrl)
+                    }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RemoteIcon(
+                    iconUrl = app.iconUrl,
+                    appUrl = null,
+                    name = app.name,
+                    tint = palette.accentText,
+                    size = 44.dp,
+                    corner = 14.dp,
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = app.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = buildString {
+                            if (app.version.isNotBlank()) append("v${app.version} · ")
+                            if (app.sizeBytes > 0) append("%.1f МБ · ".format(app.sizeBytes / 1048576f))
+                            append(app.description.ifBlank { app.repo })
+                        },
+                        fontSize = 11.sp,
+                        color = palette.textSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = when {
+                            isSelf -> "этот лаунчер — вы в нём"
+                            installed -> "установлено"
+                            app.discovered -> "есть на GitHub · не установлено"
+                            else -> "не установлено"
+                        },
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (installed) palette.accentText else palette.textSecondary,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                when {
+                    progress != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(
+                            progress = { progress.coerceIn(0f, 1f) },
+                            color = palette.accentText,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(26.dp),
+                        )
+                        Text(
+                            text = "${(progress * 100).toInt()}%",
+                            fontSize = 9.sp,
+                            color = palette.textSecondary,
+                        )
+                    }
+
+                    installed -> Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(palette.accentText.copy(alpha = 0.16f))
+                            .clickable(enabled = !isSelf) { onLaunchPackage(app.packageName) }
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                    ) {
+                        Text(
+                            text = if (isSelf) "Здесь" else "Открыть",
+                            fontSize = 12.sp,
+                            color = palette.accentText,
+                        )
+                    }
+
+                    else -> Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(palette.panel)
+                            .border(1.dp, palette.accentText.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .clickable(enabled = app.apkUrl.isNotBlank()) { onInstall(app) }
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                    ) {
+                        Text("Скачать", fontSize = 12.sp, color = palette.accentText)
+                    }
+                }
+            }
+        }
+        item {
+            Text(
+                text = "Здесь приложения, собранные в opencode/OpenChamber. Установленные открываются сразу, " +
+                    "остальные ведут на страницу релиза, а кнопка «Скачать» приносит APK и предлагает установку.",
+                fontSize = 10.sp,
+                color = palette.textSecondary.copy(alpha = 0.85f),
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun WebAppsList(
-    palette: LumenPalette,
+private fun WebAppsList(    palette: LumenPalette,
     apps: List<WebApp>,
     onOpen: (WebApp) -> Unit,
     onDelete: (WebApp) -> Unit,

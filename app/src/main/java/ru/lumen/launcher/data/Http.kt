@@ -1,6 +1,7 @@
 package ru.lumen.launcher.data
 
 import android.util.Log
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -100,6 +101,52 @@ object Http {
         } catch (error: Exception) {
             Log.w("LumenHttp", "POST $url failed: ${error.message}")
             HttpTextResponse(code = -1, body = "", failure = error.message ?: error.javaClass.simpleName)
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    /** Скачивает файл потоком, сообщая о прогрессе. Возвращает null при успехе. */
+    fun download(
+        url: String,
+        target: File,
+        timeoutMs: Int = 60000,
+        onProgress: (Float) -> Unit = {},
+    ): String? {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = timeoutMs
+                readTimeout = timeoutMs
+                requestMethod = "GET"
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "LumenLauncher/1.5 (Android)")
+                setRequestProperty("Accept", "application/octet-stream, */*")
+            }
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                return "сервер ответил $code"
+            }
+            val total = connection.contentLengthLong.takeIf { it > 0 } ?: -1L
+            target.parentFile?.mkdirs()
+            connection.inputStream.use { input ->
+                target.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var written = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        output.write(buffer, 0, read)
+                        written += read
+                        if (total > 0) onProgress(written.toFloat() / total)
+                    }
+                }
+            }
+            null
+        } catch (error: Exception) {
+            Log.w("LumenHttp", "download $url failed: ${error.message}")
+            runCatching { target.delete() }
+            error.message ?: error.javaClass.simpleName
         } finally {
             connection?.disconnect()
         }

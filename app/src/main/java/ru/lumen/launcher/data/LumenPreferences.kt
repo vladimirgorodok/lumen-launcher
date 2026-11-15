@@ -20,6 +20,8 @@ data class LumenSettings(
     val connections: List<Connection> = emptyList(),
     val characterId: String = Characters.first().id,
     val skills: SkillsState = SkillsState(),
+    val buildsUrl: String = BuildsRegistry.DEFAULT_URL,
+    val showBuilds: Boolean = true,
     val weatherCache: String? = null,
 )
 
@@ -33,6 +35,8 @@ class LumenPreferences(private val context: Context) {
         val connections = stringPreferencesKey("connections")
         val characterId = stringPreferencesKey("character_id")
         val skills = stringPreferencesKey("skills")
+        val buildsUrl = stringPreferencesKey("builds_url")
+        val showBuilds = booleanPreferencesKey("show_builds")
         val weatherCache = stringPreferencesKey("weather_cache")
     }
 
@@ -45,6 +49,8 @@ class LumenPreferences(private val context: Context) {
             connections = decodeConnections(prefs[Keys.connections]),
             characterId = prefs[Keys.characterId] ?: Characters.first().id,
             skills = decodeSkills(prefs[Keys.skills]),
+            buildsUrl = prefs[Keys.buildsUrl] ?: BuildsRegistry.DEFAULT_URL,
+            showBuilds = prefs[Keys.showBuilds] ?: true,
             weatherCache = prefs[Keys.weatherCache],
         )
     }
@@ -75,6 +81,16 @@ class LumenPreferences(private val context: Context) {
 
     suspend fun setSkills(skills: SkillsState) {
         context.lumenDataStore.edit { it[Keys.skills] = encodeSkills(skills.enabledIds, skills.custom) }
+    }
+
+    suspend fun setBuildsUrl(url: String) {
+        context.lumenDataStore.edit {
+            it[Keys.buildsUrl] = url.trim().ifBlank { BuildsRegistry.DEFAULT_URL }
+        }
+    }
+
+    suspend fun setShowBuilds(show: Boolean) {
+        context.lumenDataStore.edit { it[Keys.showBuilds] = show }
     }
 
     suspend fun setWeatherCache(raw: String?) {
