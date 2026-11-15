@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+app/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Локальные пути и секреты
+local.properties
+*.jks
+*.keystore
+.dev.vars
+.env
+
+# IDE
+.idea/
+*.iml
+captures/
+.kotlin/
+
+# OS
+.DS_Store
