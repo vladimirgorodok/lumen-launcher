@@ -11,7 +11,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/tag/latest",
       "apkUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/download/latest/avtobaza-debug.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/avtotracker.png",
-      "size": 6815744
+      "size": 6848921
     },
     {
       "id": "zen-counter",
@@ -23,7 +23,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/zen-counter/releases/tag/v1.0.5",
       "apkUrl": "https://github.com/vladimirgorodok/zen-counter/releases/download/v1.0.5/zen-counter-v1.0.5.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/zen-counter.png",
-      "size": 419430
+      "size": 432716
     },
     {
       "id": "yadisk-photo-ai",
@@ -35,7 +35,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/yadisk-photo-ai/releases/tag/v1.2.1",
       "apkUrl": "https://github.com/vladimirgorodok/yadisk-photo-ai/releases/download/v1.2.1/yadisk-photo-ai-1.2.1-release.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/yadisk-photo-ai.png",
-      "size": 15309209
+      "size": 15282497
     },
     {
       "id": "kod-dnya",
@@ -47,7 +47,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/kod-dnya/releases/tag/v1.0.0",
       "apkUrl": "https://github.com/vladimirgorodok/kod-dnya/releases/download/v1.0.0/kod-dnya-v1.0.0.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/kod-dnya.png",
-      "size": 1677721
+      "size": 1633498
     },
     {
       "id": "lumen-launcher",
@@ -71,7 +71,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/Platezhi2/releases/tag/v1.10",
       "apkUrl": "https://github.com/vladimirgorodok/Platezhi2/releases/download/v1.10/Platezhi2-v1.10.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/platezhi2.png",
-      "size": 12373196
+      "size": 12332088
     },
     {
       "id": "tablica-kodov",
@@ -83,7 +83,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/tag/v1.1.2",
       "apkUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/download/v1.1.2/tablica-kodov-v1.1.2.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/tablica-kodov.png",
-      "size": 1153433
+      "size": 1187513
     }
   ]
 }
