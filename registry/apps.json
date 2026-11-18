@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-15",
+  "updated": "2026-11-18",
   "apps": [
     {
       "id": "avtotracker",
@@ -11,7 +11,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/tag/latest",
       "apkUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/download/latest/avtobaza-debug.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/avtotracker.png",
-      "size": 6848921
+      "size": 7392869
     },
     {
       "id": "zen-counter",
@@ -65,25 +65,25 @@
       "id": "platezhi2",
       "name": "Платежи 2.0",
       "package": "ru.platezhi2.app",
-      "version": "1.10",
+      "version": "1.17",
       "description": "Платежи 2.0 — приложение для учёта регулярных платежей (Kotlin + Jetpack Compose)",
       "repo": "vladimirgorodok/Platezhi2",
-      "releaseUrl": "https://github.com/vladimirgorodok/Platezhi2/releases/tag/v1.10",
-      "apkUrl": "https://github.com/vladimirgorodok/Platezhi2/releases/download/v1.10/Platezhi2-v1.10.apk",
+      "releaseUrl": "https://github.com/vladimirgorodok/Platezhi2/releases/tag/v1.17",
+      "apkUrl": "https://github.com/vladimirgorodok/Platezhi2/releases/download/v1.17/Platezhi2-v1.17.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/platezhi2.png",
-      "size": 12332088
+      "size": 12397439
     },
     {
       "id": "tablica-kodov",
       "name": "Таблица кодов",
       "package": "com.codetable.app",
-      "version": "1.1.2",
+      "version": "1.2.2",
       "description": "Мобильная таблица девятизначных кодов: PWA и Android APK",
       "repo": "vladimirgorodok/tablica-kodov",
-      "releaseUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/tag/v1.1.2",
-      "apkUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/download/v1.1.2/tablica-kodov-v1.1.2.apk",
+      "releaseUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/tag/v1.2.2",
+      "apkUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/download/v1.2.2/tablica-kodov-v1.2.2.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/tablica-kodov.png",
-      "size": 1187513
+      "size": 1191609
     }
   ]
 }
