@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -55,6 +56,7 @@ import ru.lumen.launcher.data.Connection
 import ru.lumen.launcher.data.LumenSettings
 import ru.lumen.launcher.data.ServiceKind
 import ru.lumen.launcher.data.WebApp
+import ru.lumen.launcher.data.cloud.CloudContainer
 import ru.lumen.launcher.data.normalizeUrl
 
 @Composable
@@ -81,6 +83,13 @@ fun SettingsScreen(
     onAddFact: (String) -> Unit,
     onDeleteFact: (String) -> Unit,
     onClearMemory: () -> Unit,
+    cloud: CloudContainer,
+    onCloudLogin: (String) -> Unit,
+    onCloudPassword: (String) -> Unit,
+    onCloudFolder: (String) -> Unit,
+    onCloudAutoSync: (Boolean) -> Unit,
+    onCloudKeepCopies: (Int) -> Unit,
+    onCloudSendSecrets: (Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -88,6 +97,7 @@ fun SettingsScreen(
     var editingConnection by remember { mutableStateOf<Connection?>(null) }
     var buildsUrl by remember(settings.buildsUrl) { mutableStateOf(settings.buildsUrl) }
     var memoryOpen by remember { mutableStateOf(false) }
+    var cloudOpen by remember { mutableStateOf(false) }
 
     if (memoryOpen) {
         MemoryScreen(
@@ -99,6 +109,22 @@ fun SettingsScreen(
             onClear = onClearMemory,
             onRememberChat = onRememberChat,
             onBack = { memoryOpen = false },
+        )
+        return
+    }
+
+    if (cloudOpen) {
+        CloudScreen(
+            palette = palette,
+            settings = settings,
+            container = cloud,
+            onSaveLogin = onCloudLogin,
+            onSavePassword = onCloudPassword,
+            onSaveFolder = onCloudFolder,
+            onAutoSync = onCloudAutoSync,
+            onKeepCopies = onCloudKeepCopies,
+            onSendSecrets = onCloudSendSecrets,
+            onBack = { cloudOpen = false },
         )
         return
     }
@@ -492,6 +518,32 @@ fun SettingsScreen(
                     palette = palette,
                     onClick = { addingConnection = true },
                 )
+            }
+
+            SettingsCard(palette, title = "Облако", icon = Icons.Filled.Cloud) {
+                Text(
+                    "Переносит состояние на другое устройство: настройки, веб-приложения, " +
+                        "подключения, память персонажа и историю диалогов. Нужны логин Яндекс " +
+                        "и пароль приложения (обычный пароль не подойдёт).",
+                    fontSize = 12.sp,
+                    color = palette.textSecondary,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    when {
+                        !settings.cloudConfigured -> "обмен не настроен"
+                        settings.autoSync -> "автообмен включён · папка ${settings.cloudFolder}"
+                        else -> "автообмен выключен · папка ${settings.cloudFolder}"
+                    },
+                    fontSize = 12.sp,
+                    color = palette.textPrimary,
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedAction(
+                    text = "Обмен данными с Яндекс Диском",
+                    subtitle = "логин, пароль приложения, папка, копии",
+                    palette = palette,
+                ) { cloudOpen = true }
             }
 
             SettingsCard(palette, title = "Веб-приложения", icon = Icons.Filled.Public) {

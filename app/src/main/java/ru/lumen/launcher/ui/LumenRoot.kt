@@ -101,6 +101,7 @@ import ru.lumen.launcher.data.DeviceActions
 import ru.lumen.launcher.data.InstalledApp
 import ru.lumen.launcher.data.LocationProvider
 import ru.lumen.launcher.data.LumenPreferences
+import ru.lumen.launcher.data.cloud.CloudContainer
 import ru.lumen.launcher.data.LumenSettings
 import ru.lumen.launcher.data.Memory
 import ru.lumen.launcher.data.MemoryFact
@@ -125,6 +126,7 @@ fun LumenRoot() {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     val preferences = remember { LumenPreferences(context) }
+    val cloud = remember { CloudContainer.of(context) }
     val appsRepository = remember { AppsRepository(context) }
     val locationProvider = remember { LocationProvider(context) }
     val scope = rememberCoroutineScope()
@@ -670,6 +672,13 @@ fun LumenRoot() {
                         onClearMemory = {
                             scope.launch { preferences.setMemory(emptyList()) }
                         },
+                        cloud = cloud,
+                        onCloudLogin = { login -> scope.launch { cloud.preferences.setYandexLogin(login) } },
+                        onCloudPassword = { pass -> scope.launch { cloud.preferences.setYandexPassword(pass) } },
+                        onCloudFolder = { folder -> scope.launch { cloud.preferences.setCloudFolder(folder) } },
+                        onCloudAutoSync = { on -> scope.launch { cloud.preferences.setAutoSync(on) } },
+                        onCloudKeepCopies = { count -> scope.launch { cloud.preferences.setCloudKeepCopies(count) } },
+                        onCloudSendSecrets = { on -> scope.launch { cloud.preferences.setCloudSendSecrets(on) } },
                         onBack = { screen = Screen.CLOCK },
                     )
                 }
