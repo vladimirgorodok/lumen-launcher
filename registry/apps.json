@@ -1,6 +1,18 @@
 {
-  "updated": "2026-11-18",
+  "updated": "2026-11-20",
   "apps": [
+    {
+      "id": "pwaiconextractor",
+      "name": "PwaIconExtractor",
+      "package": "",
+      "version": "1.0.0",
+      "description": "Android app for extracting PWA/web app icons by URL",
+      "repo": "vladimirgorodok/PwaIconExtractor",
+      "releaseUrl": "https://github.com/vladimirgorodok/PwaIconExtractor/releases/tag/v1.0.0",
+      "apkUrl": "https://github.com/vladimirgorodok/PwaIconExtractor/releases/download/v1.0.0/PwaIconExtractor-v1.0-debug.apk",
+      "icon": "",
+      "size": 16945277
+    },
     {
       "id": "avtotracker",
       "name": "АвтоБаза",
@@ -11,7 +23,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/tag/latest",
       "apkUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/download/latest/avtobaza-debug.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/avtotracker.png",
-      "size": 7392869
+      "size": 7395289
     },
     {
       "id": "zen-counter",
