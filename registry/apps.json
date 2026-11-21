@@ -1,6 +1,18 @@
 {
-  "updated": "2026-11-20",
+  "updated": "2026-11-21",
   "apps": [
+    {
+      "id": "personal-safe",
+      "name": "personal-safe",
+      "package": "",
+      "version": "1.5",
+      "description": "Личный сейф — Android-приложение (Kotlin + Jetpack Compose) для хранения токенов, паролей, карт и документов с ИИ-агентом и офлайн-эвристиками",
+      "repo": "vladimirgorodok/personal-safe",
+      "releaseUrl": "https://github.com/vladimirgorodok/personal-safe/releases/tag/v1.5",
+      "apkUrl": "https://github.com/vladimirgorodok/personal-safe/releases/download/v1.5/Safe-v1.5.apk",
+      "icon": "",
+      "size": 13491609
+    },
     {
       "id": "pwaiconextractor",
       "name": "PwaIconExtractor",
@@ -23,7 +35,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/tag/latest",
       "apkUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/download/latest/avtobaza-debug.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/avtotracker.png",
-      "size": 7395289
+      "size": 7412061
     },
     {
       "id": "zen-counter",
