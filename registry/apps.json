@@ -1,17 +1,17 @@
 {
-  "updated": "2026-11-21",
+  "updated": "2026-11-23",
   "apps": [
     {
       "id": "personal-safe",
       "name": "personal-safe",
       "package": "",
-      "version": "1.5",
+      "version": "2.12",
       "description": "Личный сейф — Android-приложение (Kotlin + Jetpack Compose) для хранения токенов, паролей, карт и документов с ИИ-агентом и офлайн-эвристиками",
       "repo": "vladimirgorodok/personal-safe",
-      "releaseUrl": "https://github.com/vladimirgorodok/personal-safe/releases/tag/v1.5",
-      "apkUrl": "https://github.com/vladimirgorodok/personal-safe/releases/download/v1.5/Safe-v1.5.apk",
+      "releaseUrl": "https://github.com/vladimirgorodok/personal-safe/releases/tag/v2.12",
+      "apkUrl": "https://github.com/vladimirgorodok/personal-safe/releases/download/v2.12/Safe-v2.12.apk",
       "icon": "",
-      "size": 13491609
+      "size": 13593461
     },
     {
       "id": "pwaiconextractor",
@@ -35,7 +35,7 @@
       "releaseUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/tag/latest",
       "apkUrl": "https://github.com/vladimirgorodok/Avtotracker/releases/download/latest/avtobaza-debug.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/avtotracker.png",
-      "size": 7412061
+      "size": 7413225
     },
     {
       "id": "zen-counter",
@@ -101,11 +101,11 @@
       "id": "tablica-kodov",
       "name": "Таблица кодов",
       "package": "com.codetable.app",
-      "version": "1.2.2",
+      "version": "1.3.0",
       "description": "Мобильная таблица девятизначных кодов: PWA и Android APK",
       "repo": "vladimirgorodok/tablica-kodov",
-      "releaseUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/tag/v1.2.2",
-      "apkUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/download/v1.2.2/tablica-kodov-v1.2.2.apk",
+      "releaseUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/tag/v1.3.0",
+      "apkUrl": "https://github.com/vladimirgorodok/tablica-kodov/releases/download/v1.3.0/tablica-kodov-v1.3.0.apk",
       "icon": "https://raw.githubusercontent.com/vladimirgorodok/lumen-launcher/master/registry/icons/tablica-kodov.png",
       "size": 1191609
     }
